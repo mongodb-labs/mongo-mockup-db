@@ -482,7 +482,7 @@ class OpDelete(_LegacyWrite):
 
 
 class OpReply(object):
-    """A reply from `MockupDB` to the MongoClient."""
+    """A reply from `MockupDB` to the client."""
     def __init__(self, *args, **kwargs):
         self._flags = kwargs.pop('flags', 0)
         self._cursor_id = kwargs.pop('cursor_id', 0)
