@@ -173,17 +173,17 @@ little loop:
    >>> import traceback
    >>> def loop():
    ...     try:
-   ...         for request in server:
-   ...             if Command('ismaster').matches(request):
-   ...                 request.ok()
+   ...         while server.running:
    ...             # Match queries most restrictive first.
-   ...             elif OpQuery({'a': {'$gt': 1}}).matches(request):
-   ...                 request.reply()
-   ...             elif OpQuery().matches(request):
-   ...                 request.reply({'a': 1})
-   ...             elif Command('break').matches(request):
-   ...                 request.ok()
+   ...             if server.got(OpQuery, {'a': {'$gt': 1}}):
+   ...                 server.reply({'a': 2})
+   ...             elif server.got('break'):
+   ...                 server.ok()
    ...                 break
+   ...             elif server.got(OpQuery):
+   ...                 server.reply({'a': 1}, {'a': 2})
+   ...             else:
+   ...                 server.command_err('unrecognized request')
    ...     except:
    ...         traceback.print_exc()
    ...         raise
@@ -191,10 +191,10 @@ little loop:
    >>> future = go(loop)
    >>>
    >>> client = MongoClient(server.uri)
-   >>> client.db.collection.find_one()
-   {u'a': 1}
-   >>> client.db.collection.find_one({'a': {'$gt': 1}}) is None
-   True
+   >>> list(client.db.collection.find())
+   [{u'a': 1}, {u'a': 2}]
+   >>> list(client.db.collection.find({'a': {'$gt': 1}}))
+   [{u'a': 2}]
    >>> client.db.command('break')
    {u'ok': 1}
    >>> future()
@@ -202,13 +202,15 @@ little loop:
 You can even implement the "shutdown" command:
 
    >>> def loop():
-   ...     for request in server:
-   ...         if Command('ismaster').matches(request):
-   ...             request.ok()
-   ...         elif Command('shutdown').matches(request):
-   ...             server.stop()
-   ...
-   ...     return 'server done'
+   ...     try:
+   ...         while server.running:
+   ...             if server.got('shutdown'):
+   ...                 server.stop()  # Hangs up.
+   ...             else:
+   ...                 server.command_err('unrecognized request')
+   ...     except:
+   ...         traceback.print_exc()
+   ...         raise
    ...
    >>> future = go(loop)
    >>> client.db.command('shutdown')
@@ -216,7 +218,8 @@ You can even implement the "shutdown" command:
      ...
    AutoReconnect: connection closed
    >>> future()
-   'server done'
+   >>> server.running
+   False
 
 To show off a difficult test that MockupDB makes easy, assert that
 PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:

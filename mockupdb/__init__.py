@@ -240,7 +240,7 @@ class Request(object):
         self._replies(*args, **kwargs)
 
     ok = send = sends = reply = replies
-    """Synonym for `replies`."""
+    """Synonym for `.replies`."""
 
     def fail(self, err='MockupDB query failure', *args, **kwargs):
         """Reply to a query with the QueryFailure flag and an '$err' key."""
@@ -729,7 +729,7 @@ class MockupDB(object):
         self._verbose = verbose
         self._replica_set = replicaSet  # TODO remove?
 
-        # TODO: test & implement.
+        # TODO: test & implement. Should be much shorter?
         self._request_timeout = request_timeout
         self._reply_timeout = reply_timeout
 
@@ -803,6 +803,63 @@ class MockupDB(object):
 
     gets = pop = receive = receives
     """Synonym for `receives`."""
+
+    def got(self, *args, **kwargs):
+        """Does `.request` match the given `request spec`_?
+
+        >>> s = MockupDB(auto_ismaster=True)
+        >>> port = s.run()
+        >>> s.got(timeout=0)  # No request enqueued.
+        False
+        >>> from pymongo import MongoClient
+        >>> client = MongoClient(s.uri)
+        >>> future = go(client.db.command, 'foo')
+        >>> s.got('foo')
+        True
+        >>> s.got(Command('foo'))
+        True
+        >>> s.got(Command('foo', key='value'))
+        False
+        >>> s.ok()
+        >>> future()
+        {u'ok': 1}
+        >>> s.stop()
+        """
+        timeout = kwargs.pop('timeout', self._request_timeout)
+        end = time.time() + timeout
+        matcher = make_matcher(*args, **kwargs)
+
+        while not self._stopped:
+            try:
+                # Short timeout so we notice if the server is stopped.
+                request = self._request_q.peek(timeout=timeout)
+            except Empty:
+                if time.time() > end:
+                    return False
+            else:
+                return matcher.matches(request)
+
+    wait = got
+    """Synonym for `got`."""
+
+    def replies(self, *args, **kwargs):
+        """Call `~Request.reply` on the currently enqueued request."""
+        self.pop().replies(*args, **kwargs)
+
+    ok = send = sends = reply = replies
+    """Synonym for `.replies`."""
+
+    def fail(self, *args, **kwargs):
+        """Call `~Request.fail` on the currently enqueued request."""
+        self.pop().fail(*args, **kwargs)
+
+    def command_err(self, *args, **kwargs):
+        """Call `~Request.command_err` on the currently enqueued request."""
+        self.pop().command_err(*args, **kwargs)
+
+    def hangup(self):
+        """Call `~Request.hangup` on the currently enqueued request."""
+        self.pop().hangup()
 
     @_synchronized
     def autoresponds(self, request, *args, **kwargs):
@@ -902,6 +959,11 @@ class MockupDB(object):
         return self._requests_count
 
     @property
+    def request(self):
+        """The currently enqueued `Request`, or None."""
+        return self.got() or None
+
+    @property
     @_synchronized
     def running(self):
         """If this server is started and not stopped."""
@@ -972,6 +1034,7 @@ class MockupDB(object):
         finally:
             self._lock.acquire()
 
+    # TODO: test iteration.
     def __iter__(self):
         return self
 
@@ -1098,6 +1161,15 @@ def make_docs(*args, **kwargs):
         raise TypeError('each doc must be a dict')
 
     return args
+
+
+def make_matcher(*args, **kwargs):
+    if args and isinstance(args[0], Matcher):
+        if args[1:] or kwargs:
+            raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
+        return args[0]
+
+    return Matcher(*args, **kwargs)
 
 
 def make_prototype_request(*args, **kwargs):
