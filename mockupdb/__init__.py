@@ -62,6 +62,18 @@ else:
 """)
 
 
+# Do not export "main".
+__all__ = [
+    'MockupDB', 'go', 'interactive_server',
+
+    'OPCODES', 'OP_REPLY', 'OP_UPDATE', 'OP_INSERT', 'OP_QUERY', 'OP_GET_MORE',
+    'OP_DELETE', 'OP_KILL_CURSORS',
+
+    'Request', 'AnyRequest', 'Command', 'OpQuery', 'OpGetMore',
+    'OpKillCursors', 'OpInsert', 'OpReply',
+]
+
+
 def go(fn, *args, **kwargs):
     """TODO: doc."""
     result = [None]
