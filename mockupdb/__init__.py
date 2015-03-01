@@ -196,23 +196,6 @@ class Request(object):
         self._server = kwargs.pop('server', None)
         self._docs = make_docs(*args, **kwargs)
 
-    # TODO: remove.
-    def matches(self, *args, **kwargs):
-        request = make_request(*args, **kwargs)
-        if self.opcode != request.opcode:
-            return False
-        if self._namespace not in (None, request.namespace):
-            return False
-        if self._flags not in (None, request._flags):
-            return False
-        if len(self._docs) != len(request.docs):
-            return False
-        for i, doc in enumerate(self._docs):
-            for key, value in doc.items():
-                if request.docs[i].get(key) != value:
-                    return False
-        return True
-
     @property
     def doc(self):
         """The request document, if there is exactly one.
@@ -309,22 +292,6 @@ class Request(object):
         return rep + ')'
 
 
-# TODO: remove
-class AnyRequest(object):
-    """Matches any client request.
-
-    To always fail::
-
-        >>> server = MockupDB()
-        >>> server.autoresponds(Request(), ok=0)
-    """
-    def matches(self, _):
-        return True
-
-    def __repr__(self):
-        return self.__class__.__name__
-
-
 class OpQuery(Request):
     """A query (besides a command) the client executes on the server."""
     opcode = OP_QUERY
@@ -373,20 +340,6 @@ class OpQuery(Request):
         elif len(self._docs) > 1:
             raise ValueError('OpQuery too many documents: %s'
                              % self._docs)
-
-    def matches(self, message):
-        """Match an `OpQuery`
-
-        The message's flags, num_to_skip, and num_to_return must match, and
-        its filter document must be a subset of this one.
-        """
-        if isinstance(message, Command):
-            return False
-        if not super(OpQuery, self).matches(message):
-            return False
-        if self._num_to_skip not in (None, message.num_to_skip):
-            return False
-        return self._num_to_return in (None, message.num_to_return)
 
     @property
     def num_to_skip(self):
@@ -488,11 +441,6 @@ class OpKillCursors(Request):
     def __init__(self, **kwargs):
         self._cursor_ids = kwargs.pop('cursor_ids', None)
         super(OpKillCursors, self).__init__(**kwargs)
-
-    def matches(self, message):
-        if not super(OpKillCursors, self).matches(message):
-            return False
-        return self._cursor_ids in (None, message.cursor_ids)
 
     @property
     def cursor_ids(self):
@@ -716,11 +664,6 @@ class Matcher(object):
         request = make_prototype_request(*args, **kwargs)
         if self.opcode not in (None, request.opcode):
             return False
-        # for name, value in self._kwargs.items():
-        #     prototype_value = getattr(self._prototype, name, None)
-        #     actual_value = getattr(request, name, None)
-        #     if prototype_value not in (None, actual_value):
-        #         return False
         for name in dir(self._prototype):
             if name.startswith('_') or name in ('doc', 'docs'):
                 # Ignore privates, and handle documents specially.
@@ -1109,7 +1052,7 @@ def make_docs(*args, **kwargs):
 
     Takes a variety of argument styles, returns a list of dicts.
 
-    Used by `make_request` and `make_reply`, which are in turn used by
+    Used by `make_prototype_request` and `make_reply`, which are in turn used by
     `MockupDB.receives`, `Request.replies`, and so on. See examples in
     tutorial.
     """
@@ -1157,7 +1100,6 @@ def make_docs(*args, **kwargs):
     return args
 
 
-# TODO: rename to make_request?
 def make_prototype_request(*args, **kwargs):
     """Make a prototype Request for a Matcher."""
     if args and inspect.isclass(args[0]) and issubclass(args[0], Request):
@@ -1170,25 +1112,6 @@ def make_prototype_request(*args, **kwargs):
 
     # Match any opcode.
     return Request(*args, **kwargs)
-
-
-# TODO: remove?
-def make_request(*args, **kwargs):
-    """Make a Request from a request spec, a Command by default.
-
-    See examples in tutorial.
-    """
-    if not args:
-        return Command(**kwargs)
-    if inspect.isclass(args[0]) and issubclass(args[0], Request):
-        request_cls, arg_list = args[0], args[1:]
-        return request_cls(*arg_list, **kwargs)
-    if isinstance(args[0], Request):
-        if args[1:] or kwargs:
-            raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
-        return args[0]
-
-    return Command(*args, **kwargs)
 
 
 def make_reply(*args, **kwargs):
