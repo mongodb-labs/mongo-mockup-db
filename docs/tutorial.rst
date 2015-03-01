@@ -14,10 +14,10 @@ We assume some familiarity with PyMongo_ and the `MongoDB Wire Protocol`_.
 Introduction
 ------------
 
-You can play with the mock server via ``python -m mockupdb``and connect from
+You can play with the mock server via ``python -m mockupdb`` and connect from
 the shell, but that is not tremendously interesting. Better to use it in tests.
 
-We begin by running a :class:`.MockupDB` and connecting to it with
+We begin by running a :class:`.MockupDB` and connecting to it with PyMongo's
 `~pymongo.mongo_client.MongoClient`:
 
    >>> import sys
@@ -82,9 +82,9 @@ can respond from the main thread:
    >>> future = go(collection.insert_one, {'_id': 2})
 
 Pass a method and its arguments to the `go` function, the same as to
-`functools.partial`. It launches `insert_one` on a thread and returns a
-handle to its future outcome. Meanwhile, wait for the client's request to
-arrive on the main thread:
+`functools.partial`. It launches `~pymongo.collection.Collection.insert_one`
+on a thread and returns a handle to its future outcome. Meanwhile, wait for the
+client's request to arrive on the main thread:
 
    >>> server.receives()
    OpInsert({u'_id': 2})

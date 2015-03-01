@@ -48,6 +48,11 @@ extensions = [
     'sphinx.ext.intersphinx',
 ]
 
+intersphinx_mapping = {
+    'python': ('http://python.readthedocs.org/en/latest/', None),
+    'pymongo': ('http://api.mongodb.org/python/current/', None),
+}
+
 primary_domain = 'py'
 default_role = 'py:obj'
 
