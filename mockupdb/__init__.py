@@ -119,6 +119,16 @@ QUERY_FLAGS = OrderedDict([
     ('Exhaust', 64),
     ('Partial', 128)])
 
+UPDATE_FLAGS = OrderedDict([
+    ('Upsert', 1),
+    ('MultiUpdate', 2)])
+
+INSERT_FLAGS = OrderedDict([
+    ('ContinueOnError', 1)])
+
+DELETE_FLAGS = OrderedDict([
+    ('SingleRemove', 1)])
+
 REPLY_FLAGS = OrderedDict([
     ('CursorNotFound', 1),
     ('QueryFailure', 2)])
@@ -425,6 +435,30 @@ class OpQuery(Request):
         return rep + ')'
 
 
+class Command(OpQuery):
+    """A command the client executes on the server."""
+
+    def _replies(self, *args, **kwargs):
+        reply = make_reply(*args, **kwargs)
+        if not reply.docs:
+            reply.docs = [{'ok': 1}]
+        else:
+            if len(reply.docs) > 1:
+                raise ValueError('Command reply with multiple documents: %s'
+                                 % reply.docs)
+            reply.doc.setdefault('ok', 1)
+        super(Command, self)._replies(reply)
+
+    def replies_to_gle(self, **kwargs):
+        """Send a getlasterror response.
+
+        Defaults to ``{ok: 1, err: null}``. Add or override values by passing
+        keyword arguments.
+        """
+        kwargs.setdefault('err', None)
+        self.replies(**kwargs)
+
+
 class OpGetMore(Request):
     """An OP_GET_MORE the client executes on the server."""
     @classmethod
@@ -491,10 +525,7 @@ class OpKillCursors(Request):
         return '%s(%s)' % (self.__class__.__name__, self._cursor_ids)
 
 
-class OpInsert(Request):
-    """A legacy OP_INSERT the client executes on the server."""
-    opcode = OP_INSERT
-
+class _LegacyWrite(Request):
     @classmethod
     def unpack(cls, msg, client, server, request_id):
         """Parse message and return an `OpInsert`.
@@ -505,8 +536,23 @@ class OpInsert(Request):
         flags, = _UNPACK_INT(msg[:4])
         namespace, pos = _get_c_string(msg, 4)
         docs = bson.decode_all(msg[pos:])
-        return OpInsert(*docs, namespace=namespace, flags=flags, client=client,
-                        request_id=request_id, server=server)
+        return cls(*docs, namespace=namespace, flags=flags, client=client,
+                   request_id=request_id, server=server)
+
+
+class OpInsert(_LegacyWrite):
+    """A legacy OP_INSERT the client executes on the server."""
+    opcode = OP_INSERT
+
+
+class OpUpdate(_LegacyWrite):
+    """A legacy OP_UPDATE the client executes on the server."""
+    opcode = OP_UPDATE
+
+
+class OpDelete(_LegacyWrite):
+    """A legacy OP_DELETE the client executes on the server."""
+    opcode = OP_DELETE
 
 
 class OpReply(object):
@@ -871,9 +917,10 @@ def bind_socket(address):
     raise socket.error('could not bind socket')
 
 
-# TODO: update, delete.
 OPCODES = {OP_QUERY: OpQuery,
            OP_INSERT: OpInsert,
+           OP_UPDATE: OpUpdate,
+           OP_DELETE: OpDelete,
            OP_GET_MORE: OpGetMore,
            OP_KILL_CURSORS: OpKillCursors}
 
