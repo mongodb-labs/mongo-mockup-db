@@ -66,11 +66,16 @@ else:
 __all__ = [
     'MockupDB', 'go', 'interactive_server',
 
-    'OPCODES', 'OP_REPLY', 'OP_UPDATE', 'OP_INSERT', 'OP_QUERY', 'OP_GET_MORE',
+    'OP_REPLY', 'OP_UPDATE', 'OP_INSERT', 'OP_QUERY', 'OP_GET_MORE',
     'OP_DELETE', 'OP_KILL_CURSORS',
 
-    'Request', 'AnyRequest', 'Command', 'OpQuery', 'OpGetMore',
-    'OpKillCursors', 'OpInsert', 'OpReply',
+    'QUERY_FLAGS', 'UPDATE_FLAGS', 'INSERT_FLAGS', 'DELETE_FLAGS',
+    'REPLY_FLAGS',
+
+    'Request', 'Command', 'OpQuery', 'OpGetMore', 'OpKillCursors', 'OpInsert',
+    'OpDelete', 'OpReply',
+
+    'Matcher',
 ]
 
 
@@ -179,23 +184,8 @@ class Request(object):
         self._server = kwargs.pop('server', None)
         self._docs = make_docs(*args, **kwargs)
 
+    # TODO: remove.
     def matches(self, *args, **kwargs):
-        """Is self a subset of 'message'?
-
-            >>> # Empty message matches anything.
-            >>> Request().matches(Request({'a': 1}))
-            True
-            >>> Request().matches(Request({'a': 1}, {'a': 1}))
-            True
-            >>> Request({'a': 1}).matches(Request({'a': 1}))
-            True
-            >>> Request({'a': 2}).matches(Request({'a': 1}))
-            False
-            >>> Request({'a': 1}).matches(Request({'a': 1, 'b': 1}))
-            True
-            >>> Request({'a': 2}).matches(Request({'a': 1}, {'a': 1}))
-            False
-        """
         request = make_request(*args, **kwargs)
         if self.opcode != request.opcode:
             return False
@@ -307,44 +297,20 @@ class Request(object):
         return rep + ')'
 
 
+# TODO: remove
 class AnyRequest(object):
     """Matches any client request.
 
     To always fail::
 
         >>> server = MockupDB()
-        >>> server.autoresponds(AnyRequest, ok=0)
+        >>> server.autoresponds(Request(), ok=0)
     """
     def matches(self, _):
         return True
 
     def __repr__(self):
         return self.__class__.__name__
-
-
-class Command(Request):
-    """A command the client executes on the server."""
-    opcode = OP_QUERY
-
-    def _replies(self, *args, **kwargs):
-        reply = make_reply(*args, **kwargs)
-        if not reply.docs:
-            reply.docs = [{'ok': 1}]
-        else:
-            if len(reply.docs) > 1:
-                raise ValueError('Command reply with multiple documents: %s'
-                                 % reply.docs)
-            reply.doc.setdefault('ok', 1)
-        super(Command, self)._replies(reply)
-
-    def replies_to_gle(self, **kwargs):
-        """Send a getlasterror response.
-
-        Defaults to ``{ok: 1, err: null}``. Add or override values by passing
-        keyword arguments.
-        """
-        kwargs.setdefault('err', None)
-        self.replies(**kwargs)
 
 
 class OpQuery(Request):
@@ -624,6 +590,152 @@ class OpReply(object):
         return rep + ')'
 
 
+class Matcher(object):
+    """Matches a subset of `.Request` objects.
+
+    Initialized with a `request spec`_.
+
+    Used by `~MockupDB.receives` to assert the client sent the expected request,
+    and by `~MockupDB.got` to test if it did and return ``True`` or ``False``.
+    Used by `.autoresponds` to match requests with autoresponses.
+    """
+    opcode = None  # Default.
+
+    def __init__(self, *args, **kwargs):
+        self._kwargs = kwargs
+        self._prototype = make_prototype_request(*args, **kwargs)
+        if args or kwargs:
+            self.opcode = self._prototype.opcode
+
+    def matches(self, *args, **kwargs):
+        """Take a `request spec`_ and return ``True`` or ``False``.
+
+        .. request-matching rules::
+
+        The empty matcher matches anything:
+
+        >>> Matcher().matches({'a': 1})
+        True
+        >>> Matcher().matches({'a': 1}, {'a': 1})
+        True
+        >>> Matcher().matches('ismaster')
+        True
+
+        A matcher's document matches if its key-value pairs are a subset of the
+        request's:
+
+        >>> Matcher({'a': 1}).matches({'a': 1})
+        True
+        >>> Matcher({'a': 2}).matches({'a': 1})
+        False
+        >>> Matcher({'a': 1}).matches({'a': 1, 'b': 1})
+        True
+
+        The matcher must have the same number of documents as the request:
+
+        >>> Matcher().matches()
+        True
+        >>> Matcher([]).matches([])
+        True
+        >>> Matcher({'a': 2}).matches({'a': 1}, {'a': 1})
+        False
+
+        By default, it matches any opcode:
+
+        >>> m = Matcher()
+        >>> m.matches(OpQuery)
+        True
+        >>> m.matches(OpInsert)
+        True
+
+        You can specify what request opcode to match:
+
+        >>> m = Matcher(OpQuery)
+        >>> m.matches(OpInsert, {'_id': 1})
+        False
+        >>> m.matches(OpQuery, {'_id': 1})
+        True
+
+        Commands are queries, too:
+
+        >>> m.matches(Command)
+        True
+
+        It matches properties specific to certain opcodes:
+
+        >>> m = Matcher(OpGetMore, num_to_return=3)
+        >>> m.matches(OpGetMore())
+        False
+        >>> m.matches(OpGetMore(num_to_return=2))
+        False
+        >>> m.matches(OpGetMore(num_to_return=3))
+        True
+        >>> m = Matcher(OpQuery(namespace='db.collection'))
+        >>> m.matches(OpQuery)
+        False
+        >>> m.matches(OpQuery(namespace='db.collection'))
+        True
+
+        It matches any wire protocol header bits you specify:
+
+        >>> m = Matcher(flags=QUERY_FLAGS['SlaveOkay'])
+        >>> m.matches(OpQuery({'_id': 1}))
+        False
+        >>> m.matches(OpQuery({'_id': 1}, flags=QUERY_FLAGS['SlaveOkay']))
+        True
+
+        If you match on flags, be careful to also match on opcode. For example,
+        if you simply check that the flag in bit position 0 is set:
+
+        >>> m = Matcher(flags=INSERT_FLAGS['ContinueOnError'])
+
+        ... you will match any request with that flag:
+
+        >>> m.matches(OpDelete, flags=DELETE_FLAGS['SingleRemove'])
+        True
+
+        So specify the opcode, too:
+
+        >>> m = Matcher(OpInsert, flags=INSERT_FLAGS['ContinueOnError'])
+        >>> m.matches(OpDelete, flags=DELETE_FLAGS['SingleRemove'])
+        False
+        """
+        # TODO: just take a Request, not args and kwargs?
+        request = make_prototype_request(*args, **kwargs)
+        if self.opcode not in (None, request.opcode):
+            return False
+        # for name, value in self._kwargs.items():
+        #     prototype_value = getattr(self._prototype, name, None)
+        #     actual_value = getattr(request, name, None)
+        #     if prototype_value not in (None, actual_value):
+        #         return False
+        for name in dir(self._prototype):
+            if name.startswith('_') or name in ('doc', 'docs'):
+                # Ignore privates, and handle documents specially.
+                continue
+            prototype_value = getattr(self._prototype, name, None)
+            if inspect.ismethod(prototype_value):
+                continue
+            actual_value = getattr(request, name, None)
+            if prototype_value not in (None, actual_value):
+                return False
+        if len(self._prototype.docs) not in (0, len(request.docs)):
+            return False
+        for i, doc in enumerate(self._prototype.docs):
+            for key, value in doc.items():
+                if request.docs[i].get(key) != value:
+                    return False
+        return True
+
+    @property
+    def prototype(self):
+        """The prototype `.Request` used to match actual requests with."""
+        return self._prototype
+
+    def __repr__(self):
+        return '%s(%r)' % (self.__class__.__name__, self._prototype)
+
+
 def _synchronized(meth):
     """Call method while holding a lock."""
     @functools.wraps(meth)
@@ -717,28 +829,56 @@ class MockupDB(object):
         """
         timeout = kwargs.pop('timeout', self._request_timeout)
         end = time.time() + timeout
-        expected_request = make_request(*args, **kwargs)
+        matcher = Matcher(*args, **kwargs)
         while not self._stopped:
             try:
                 # Short timeout so we notice if the server is stopped.
                 request = self._request_q.get(timeout=0.05)
             except Empty:
                 if time.time() > end:
+                    # TODO: show in doctest with timeout.
                     raise AssertionError('expected to receive %r, got nothing'
-                                         % expected_request)
+                                         % matcher.prototype)
             else:
-                if expected_request.matches(request):
+                if matcher.matches(request):
                     return request
                 else:
                     raise AssertionError('expected to receive %r, got %r'
-                                         % (expected_request, request))
+                                         % (matcher.prototype, request))
 
     gets = pop = receive = receives
     """Synonym for `receives`."""
 
     @_synchronized
     def autoresponds(self, request, *args, **kwargs):
-        """Send a canned `OpReply` to all matching client requests.
+        """Send a canned reply to all matching client requests.
+        
+        ``request`` is a `Matcher` or an instance of `OpInsert`, `OpQuery`,
+        etc. The remaining arguments are a `reply spec`_:
+
+        >>> s = MockupDB()
+        >>> s.autoresponds('ismaster')
+        >>> s.autoresponds('foo')
+        >>> s.autoresponds('bar', ok=0, errmsg='bad')
+        >>> s.autoresponds('baz', {'key': 'value'})
+        >>> s.autoresponds(OpQuery(namespace='db.collection'),
+        ...                [{'_id': 1}, {'_id': 2}])
+        >>> port = s.run()
+        >>>
+        >>> from pymongo import MongoClient
+        >>> client = MongoClient(s.uri)
+        >>> client.admin.command('ismaster')
+        {u'ok': 1}
+        >>> client.db.command('foo')
+        {u'ok': 1}
+        >>> client.db.command('bar')
+        Traceback (most recent call last):
+        ...
+        OperationFailure: command SON([('bar', 1)]) on namespace db.$cmd failed: bad
+        >>> client.db.command('baz')
+        {u'ok': 1, u'key': u'value'}
+        >>> list(client.db.collection.find())
+        [{u'_id': 1}, {u'_id': 2}]
 
         If the request currently at the head of the queue matches, it is popped
         and replied to. Future matching requests skip the queue.
@@ -746,7 +886,7 @@ class MockupDB(object):
         Responders are applied in order, most recently added first, until one
         matches.
         """
-        matcher = make_request(request)
+        matcher = request if isinstance(request, Matcher) else Matcher(request)
         self._autoresponders.append((matcher, args, kwargs))
         try:
             request = self._request_q.peek(block=False)
@@ -1005,14 +1145,32 @@ def make_docs(*args, **kwargs):
     return args
 
 
+# TODO: rename to make_request?
+def make_prototype_request(*args, **kwargs):
+    """Make a prototype Request for a Matcher."""
+    if args and inspect.isclass(args[0]) and issubclass(args[0], Request):
+        request_cls, arg_list = args[0], args[1:]
+        return request_cls(*arg_list, **kwargs)
+    if args and isinstance(args[0], Request):
+        if args[1:] or kwargs:
+            raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
+        return args[0]
+
+    # Match any opcode.
+    return Request(*args, **kwargs)
+
+
+# TODO: remove?
 def make_request(*args, **kwargs):
-    """Make a `Request` from a request pattern. See examples in tutorial."""
-    if kwargs and not args:
-        return Command(**kwargs)
+    """Make a Request from a request spec, a Command by default.
+
+    See examples in tutorial.
+    """
     if not args:
-        return AnyRequest()
+        return Command(**kwargs)
     if inspect.isclass(args[0]) and issubclass(args[0], Request):
-        return args[0](*args[1:], **kwargs)
+        request_cls, arg_list = args[0], args[1:]
+        return request_cls(*arg_list, **kwargs)
     if isinstance(args[0], Request):
         if args[1:] or kwargs:
             raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
