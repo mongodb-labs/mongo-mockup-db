@@ -52,6 +52,10 @@ primary_domain = 'py'
 default_role = 'py:obj'
 
 doctest_global_setup = """
+try:
+    from collections import OrderedDict
+except:
+    from ordereddict import OrderedDict  # Python 2.6, "pip install ordereddict"
 from mockupdb import *
 """
 

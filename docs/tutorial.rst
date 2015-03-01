@@ -14,9 +14,8 @@ We assume some familiarity with PyMongo_ and the `MongoDB Wire Protocol`_.
 Introduction
 ------------
 
-You can play with the mock server via ``python -m mock_mongodb``
-and connect from the shell, but that is not tremendously interesting.
-Better to use it in tests.
+You can play with the mock server via ``python -m mockupdb``and connect from
+the shell, but that is not tremendously interesting. Better to use it in tests.
 
 We begin by running a :class:`.MockupDB` and connecting to it with
 `~pymongo.mongo_client.MongoClient`:
@@ -50,6 +49,8 @@ client. Responding to each "ismaster" call is tiresome, so tell the client
 to send the default response to all ismaster calls:
 
    >>> server.autoresponds('ismaster')
+   >>> client.admin.command('ismaster')
+   {u'ok': 1}
 
 A call to `~MockupDB.receives` now blocks waiting for some request that
 does *not* match "ismaster".
@@ -57,7 +58,7 @@ does *not* match "ismaster".
 Reply To Legacy Writes
 ----------------------
 
-Send an OP_INSERT:
+Send an unacknowledged OP_INSERT:
 
    >>> from pymongo.write_concern import WriteConcern
    >>> w0 = WriteConcern(w=0)

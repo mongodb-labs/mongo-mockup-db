@@ -13,7 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Simulate a MongoDB server."""
+"""Simulate a MongoDB server.
+
+Request Spec
+------------
+
+TODO
+
+Reply Spec
+----------
+
+TODO
+
+"""
 
 __author__ = 'A. Jesse Jiryu Davis'
 __email__ = 'jesse@mongodb.com'
@@ -1180,7 +1192,7 @@ def make_request(*args, **kwargs):
 
 
 def make_reply(*args, **kwargs):
-    """Make an `OpReply` from a reply pattern. See examples in tutorial."""
+    """Make an OpReply from a reply spec. See examples in tutorial."""
     # Error we might raise.
     if args and isinstance(args[0], OpReply):
         if args[1:] or kwargs:
