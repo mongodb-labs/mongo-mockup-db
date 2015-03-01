@@ -170,18 +170,23 @@ queue.
 If you do not know what order you need to accept requests, you can make a
 little loop:
 
+   >>> import traceback
    >>> def loop():
-   ...     for request in server:
-   ...         if Command('ismaster').matches(request):
-   ...             request.ok()
-   ...         # Match queries most restrictive first.
-   ...         elif OpQuery({'a': {'$gt': 1}}).matches(request):
-   ...             request.reply()
-   ...         elif OpQuery().matches(request):
-   ...             request.reply({'a': 1})
-   ...         elif Command('break').matches(request):
-   ...             request.ok()
-   ...             break
+   ...     try:
+   ...         for request in server:
+   ...             if Command('ismaster').matches(request):
+   ...                 request.ok()
+   ...             # Match queries most restrictive first.
+   ...             elif OpQuery({'a': {'$gt': 1}}).matches(request):
+   ...                 request.reply()
+   ...             elif OpQuery().matches(request):
+   ...                 request.reply({'a': 1})
+   ...             elif Command('break').matches(request):
+   ...                 request.ok()
+   ...                 break
+   ...     except:
+   ...         traceback.print_exc()
+   ...         raise
    ...
    >>> future = go(loop)
    >>>
