@@ -1,0 +1,13 @@
+*~
+*#*
+.DS*
+*.class
+*.pyc
+*.pyd
+build/
+dist/
+.tox
+*.egg
+*.egg-info
+.eggs
+docs/_build
