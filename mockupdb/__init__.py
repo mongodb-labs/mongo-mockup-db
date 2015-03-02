@@ -57,7 +57,15 @@ try:
 except:
     from ordereddict import OrderedDict  # Python 2.6, "pip install ordereddict"
 
-import bson  # From pymongo package.
+try:
+    from io import StringIO
+except ImportError:
+    from cStringIO import StringIO
+
+import bson                 # From PyMongo 3.0.
+import bson.codec_options   # From PyMongo 3.0.
+
+CODEC_OPTIONS = bson.codec_options.CodecOptions(as_class=OrderedDict)
 
 PY3 = sys.version_info[0] == 3
 if PY3:
@@ -270,24 +278,22 @@ class Request(object):
         self._client.sendall(reply_bytes)
 
     def __str__(self):
-        if len(self.docs) > 1:
-            return str(self.docs)
-        else:
-            return str(self.docs[0])
+        return docs_repr(*self.docs)
 
     def __repr__(self):
         name = self.__class__.__name__
         if not self.docs:
             rep = '%s(' % name
-        elif len(self.docs) == 1:
-            rep = '%s(%s' % (name, self.doc)
         else:
-            rep = '%s(%s' % (name, ', '.join(str(doc) for doc in self._docs))
+            rep = '%s(%s' % (name, self)
 
         if self._flags:
             rep += ', flags=%s' % (
                 '|'.join(name for name, value in QUERY_FLAGS.items()
                          if self._flags & value))
+
+        if self._namespace:
+            rep += ', namespace=%s' % unprefixed(self._namespace)
 
         return rep + ')'
 
@@ -310,7 +316,7 @@ class OpQuery(Request):
         pos += 4
         num_to_return, = _UNPACK_INT(msg[pos:pos + 4])
         pos += 4
-        docs = bson.decode_all(msg[pos:])
+        docs = bson.decode_all(msg[pos:], CODEC_OPTIONS)
         if is_command:
             assert len(docs) == 1
             command_ns = namespace[:len('.$cmd')]
@@ -461,7 +467,7 @@ class _LegacyWrite(Request):
         """
         flags, = _UNPACK_INT(msg[:4])
         namespace, pos = _get_c_string(msg, 4)
-        docs = bson.decode_all(msg[pos:])
+        docs = bson.decode_all(msg[pos:], CODEC_OPTIONS)
         return cls(*docs, namespace=namespace, flags=flags, client=client,
                    request_id=request_id, server=server)
 
@@ -538,10 +544,7 @@ class OpReply(object):
         return message + data
 
     def __str__(self):
-        if len(self._docs) == 1:
-            return str(self._docs[0])
-        else:
-            return str(self._docs)
+        return docs_repr(*self._docs)
 
     def __repr__(self):
         rep = '%s(%s' % (self.__class__.__name__, self)
@@ -1195,6 +1198,40 @@ def make_reply(*args, **kwargs):
         return args[0]
 
     return OpReply(*args, **kwargs)
+
+
+def unprefixed(bson_str):
+    rep = unicode(repr(bson_str))
+    if rep.startswith(u'u"') or rep.startswith(u"u'"):
+        return rep[1:]
+    else:
+        return rep
+
+
+def docs_repr(*args):
+    """Stringify ordered dicts like a regular ones.
+
+    Preserve order, remove 'u'-prefix on unicodes in Python 2:
+
+    >>> print(docs_repr(OrderedDict([(u'_id', 2)])))
+    {'_id': 2}
+    >>> print(docs_repr(OrderedDict([(u'_id', 2), (u'a', u'b')]),
+    ...                 OrderedDict([(u'a', 1)])))
+    {'_id': 2, 'a': 'b'}, {'a': 1}
+    """
+    sio = StringIO()
+    for doc_idx, doc in enumerate(args):
+        if doc_idx > 0:
+            sio.write(u', ')
+        sio.write(u'{')
+        for i, (key, value) in enumerate(doc.items()):
+            if i > 0:
+                sio.write(u', ')
+            sio.write(unprefixed(key))
+            sio.write(u': ')
+            sio.write(unprefixed(value))
+        sio.write(u'}')
+    return sio.getvalue()
 
 
 def interactive_server(port=27017, verbose=True):

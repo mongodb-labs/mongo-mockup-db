@@ -33,7 +33,7 @@ respond until you tell it to:
 
    >>> request = server.receives()
    >>> request
-   Command({u'ismaster': 1})
+   Command({'ismaster': 1}, namespace='admin')
 
 We respond:
 
@@ -49,8 +49,8 @@ client. Responding to each "ismaster" call is tiresome, so tell the client
 to send the default response to all ismaster calls:
 
    >>> server.autoresponds('ismaster')
-   >>> client.admin.command('ismaster')
-   {u'ok': 1}
+   >>> client.admin.command('ismaster') == {'ok': 1}
+   True
 
 A call to `~MockupDB.receives` now blocks waiting for some request that
 does *not* match "ismaster".
@@ -62,14 +62,13 @@ Send an unacknowledged OP_INSERT:
 
    >>> from pymongo.write_concern import WriteConcern
    >>> w0 = WriteConcern(w=0)
-   >>> collection = client.db.collection.with_options(write_concern=w0)
+   >>> collection = client.db.coll.with_options(write_concern=w0)
    >>> collection.insert_one({'_id': 1})  # doctest: +ELLIPSIS
    <pymongo.results.InsertOneResult object at ...>
    >>> server.receives()
-   OpInsert({u'_id': 1})
+   OpInsert({'_id': 1}, namespace='db.coll')
 
-MockupDB decodes strings in BSON messages from utf-8 to Python unicode
-strings, hence the "u" prefix in the output in Python 2.
+(For beauty's sake, MockupDB removes the "u" prefix from strings in its output.)
 
 If PyMongo sends an unacknowledged OP_INSERT it does not block
 waiting for you to call `~Request.replies`, but for all other operations it
@@ -77,7 +76,7 @@ does. Use `~test.utils.go` to defer PyMongo to a background thread so you
 can respond from the main thread:
 
    >>> # Default write concern is acknowledged.
-   >>> collection = client.db.collection
+   >>> collection = client.db.coll
    >>> from mockupdb import go
    >>> future = go(collection.insert_one, {'_id': 2})
 
@@ -87,10 +86,10 @@ on a thread and returns a handle to its future outcome. Meanwhile, wait for the
 client's request to arrive on the main thread:
 
    >>> server.receives()
-   OpInsert({u'_id': 2})
+   OpInsert({'_id': 2}, namespace='db.coll')
    >>> gle = server.receives()
    >>> gle
-   Command({u'getlasterror': 1L})
+   Command({'getlasterror': 1L}, namespace='db')
 
 You could respond with ``{'ok': 1, 'err': None}``, or for convenience:
 
@@ -120,10 +119,8 @@ Test that PyMongo now uses a write command instead of a legacy insert:
    >>> client.close()
    >>> future = go(collection.insert_one, {'_id': 1})
    >>> request = server.receives()
-   >>> request  # doctest: +NORMALIZE_WHITESPACE
-   Command({u'insert': u'collection',
-            u'documents': [{u'_id': 1}],
-            u'ordered': True})
+   >>> request
+   Command({'insert': 'coll', 'ordered': True, 'documents': [{'_id': 1}]}, namespace='db')
 
 To unblock the background thread, send the default reply of ``{ok: 1}}``:
 
@@ -133,7 +130,7 @@ To unblock the background thread, send the default reply of ``{ok: 1}}``:
 Simulate a command error:
 
    >>> future = go(collection.insert_one, {'_id': 1})
-   >>> server.receives(insert='collection').command_err(11000, 'eek!')
+   >>> server.receives(insert='coll').command_err(11000, 'eek!')
    >>> future()
    Traceback (most recent call last):
      ...
@@ -142,7 +139,7 @@ Simulate a command error:
 Or a network error:
 
    >>> future = go(collection.insert_one, {'_id': 1})
-   >>> server.receives(insert='collection').hangup()
+   >>> server.receives(insert='coll').hangup()
    >>> future()
    Traceback (most recent call last):
      ...
@@ -162,7 +159,7 @@ matches the pattern:
    Traceback (most recent call last):
      ...
    AssertionError: expected to receive Command({'commandBar': 1}),
-     got Command({u'commandFoo': 1})
+     got Command({'commandFoo': 1})
 
 Even if the pattern does not match, the request is still popped from the
 queue.
@@ -191,12 +188,12 @@ little loop:
    >>> future = go(loop)
    >>>
    >>> client = MongoClient(server.uri)
-   >>> list(client.db.collection.find())
-   [{u'a': 1}, {u'a': 2}]
-   >>> list(client.db.collection.find({'a': {'$gt': 1}}))
-   [{u'a': 2}]
-   >>> client.db.command('break')
-   {u'ok': 1}
+   >>> list(client.db.coll.find()) == [{'a': 1}, {'a': 2}]
+   True
+   >>> list(client.db.coll.find({'a': {'$gt': 1}})) == [{'a': 2}]
+   True
+   >>> client.db.command('break') == {'ok': 1}
+   True
    >>> future()
 
 You can even implement the "shutdown" command:
@@ -228,13 +225,13 @@ PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
    >>> server.autoresponds('ismaster', maxWireVersion=3)
    >>> port = server.run()
    >>>
-   >>> collection = MongoClient(server.uri, w=1).db.collection
+   >>> collection = MongoClient(server.uri, w=1).db.coll
    >>> future = go(collection.insert_one, {'_id': 4})
    >>> server.receives({'writeConcern': {'w': 1}}).sends()
 
 ... but not by default:
 
-   >>> collection = MongoClient(server.uri).db.collection
+   >>> collection = MongoClient(server.uri).db.coll
    >>> future = go(collection.insert_one, {'_id': 5})
    >>> assert 'writeConcern' not in server.receives().doc
 
@@ -271,8 +268,8 @@ We start a cursor with its first batch:
    >>> future = go(next, cursor)
    >>> reply = OpReply({'first': 'doc'}, cursor_id=123)
    >>> server.receives(OpQuery).replies(reply)
-   >>> future()
-   {u'first': u'doc'}
+   >>> future() == {'first': 'doc'}
+   True
    >>> cursor.alive
    True
 
@@ -317,8 +314,8 @@ for 2.
 
 At any rate, the loop completes and the cursor receives all documents:
 
-   >>> future()
-   [{u'_id': 1}, {u'foo': u'bar'}, {u'beauty': True}]
+   >>> future() == [{'_id': 1}, {'foo': 'bar'}, {'beauty': True}]
+   True
 
 But this is just a parlor trick. Let us test something serious.
 
@@ -338,7 +335,7 @@ To test PyMongo's server monitor, make the server a secondary:
 Connect to the replica set and try to insert:
 
    >>> client = MongoClient(server.uri, replicaSet='rs')
-   >>> collection = client.db.collection
+   >>> collection = client.db.coll
    >>> future = go(collection.insert_one, {'_id': 'my id'})
 
 PyMongo should call "ismaster" every 10 milliseconds, more or less:
@@ -352,7 +349,7 @@ PyMongo should call "ismaster" every 10 milliseconds, more or less:
 Back to normal:
 
    >>> ismaster_reply.update(ismaster=True, secondary=False)
-   >>> server.gets(insert='collection').ok()
+   >>> server.gets(insert='coll').ok()
    >>> future().inserted_id
    'my id'
 
