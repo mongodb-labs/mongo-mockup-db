@@ -205,6 +205,8 @@ class Request(object):
         self._request_id = kwargs.pop('request_id', None)
         self._server = kwargs.pop('server', None)
         self._docs = make_docs(*args, **kwargs)
+        if not all(isinstance(doc, collections.Mapping) for doc in self._docs):
+            raise TypeError('each doc must be a dict')
 
     @property
     def doc(self):
