@@ -560,7 +560,7 @@ class OpReply(object):
 class Matcher(object):
     """Matches a subset of `.Request` objects.
 
-    Initialized with a `request spec`_.
+    Initialized with a `request spec`.
 
     Used by `~MockupDB.receives` to assert the client sent the expected request,
     and by `~MockupDB.got` to test if it did and return ``True`` or ``False``.
@@ -575,7 +575,7 @@ class Matcher(object):
             self.opcode = self._prototype.opcode
 
     def matches(self, *args, **kwargs):
-        """Take a `request spec`_ and return ``True`` or ``False``.
+        """Take a `request spec` and return ``True`` or ``False``.
 
         .. request-matching rules::
 
@@ -812,7 +812,7 @@ class MockupDB(object):
     """Synonym for `receives`."""
 
     def got(self, *args, **kwargs):
-        """Does `.request` match the given `request spec`_?
+        """Does `.request` match the given `request spec`?
 
         >>> s = MockupDB(auto_ismaster=True)
         >>> port = s.run()
@@ -873,7 +873,7 @@ class MockupDB(object):
         """Send a canned reply to all matching client requests.
         
         ``request`` is a `Matcher` or an instance of `OpInsert`, `OpQuery`,
-        etc. The remaining arguments are a `reply spec`_:
+        etc. The remaining arguments are a `reply spec`:
 
         >>> s = MockupDB()
         >>> s.autoresponds('ismaster')
@@ -1003,7 +1003,7 @@ class MockupDB(object):
 
     @_synchronized
     def _server_loop(self, client):
-        """Read requests. 'client' is a client socket."""
+        """Read requests from one client socket, 'client'."""
         while not self._stopped:
             try:
                 with self._unlock():
@@ -1171,6 +1171,17 @@ def make_docs(*args, **kwargs):
 
 
 def make_matcher(*args, **kwargs):
+    """Make a Matcher from a `request spec`:
+
+    >>> make_matcher()
+    Matcher(Request())
+    >>> make_matcher({'ismaster': 1}, namespace='admin')
+    Matcher(Request({'ismaster': 1}, namespace='admin'))
+    >>> make_matcher({}, {'_id': 1})
+    Matcher(Request({}, {'_id': 1}))
+
+    See more examples in tutorial.
+    """
     if args and isinstance(args[0], Matcher):
         if args[1:] or kwargs:
             raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
@@ -1194,7 +1205,19 @@ def make_prototype_request(*args, **kwargs):
 
 
 def make_reply(*args, **kwargs):
-    """Make an OpReply from a reply spec. See examples in tutorial."""
+    """Make an OpReply from a `reply spec`_:
+
+    >>> make_reply()
+    OpReply()
+    >>> make_reply(OpReply({'ok': 0}))
+    OpReply({'ok': 0})
+    >>> make_reply(0)
+    OpReply({'ok': 0})
+    >>> make_reply(key='value')
+    OpReply({'key': 'value'})
+
+    See more examples in tutorial.
+    """
     # Error we might raise.
     if args and isinstance(args[0], OpReply):
         if args[1:] or kwargs:
