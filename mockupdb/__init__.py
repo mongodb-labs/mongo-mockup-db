@@ -742,8 +742,11 @@ class MockupDB(object):
 
         self._listening_sock = None
         self._accept_thread = None
-        self._server_socks = weakref.WeakSet()
-        self._server_threads = weakref.WeakSet()
+
+        # Track sockets that we want to close in stop(). Keys are sockets,
+        # values are None (this could be a WeakSet but it's new in Python 2.7).
+        self._server_threads = weakref.WeakKeyDictionary()
+        self._server_socks = weakref.WeakKeyDictionary()
         self._stopped = False
         self._request_q = _PeekableQueue()
         self._requests_count = 0
@@ -988,9 +991,14 @@ class MockupDB(object):
                         print('connection from %s:%s' % client_addr)
                     server_thread = threading.Thread(
                         target=functools.partial(self._server_loop, client))
+
+                    # Store weakrefs to the thread and socket, so we can
+                    # dispose them in stop().
+                    self._server_threads[server_thread] = None
+                    self._server_socks[client] = None
+
                     server_thread.daemon = True
                     server_thread.start()
-                    self._server_threads.add(server_thread)
             except socket.error as error:
                 if error.errno not in (errno.EAGAIN, errno.EBADF):
                     raise
