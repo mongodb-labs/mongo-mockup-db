@@ -214,6 +214,7 @@ class Request(object):
         self._client = kwargs.pop('client', None)
         self._request_id = kwargs.pop('request_id', None)
         self._server = kwargs.pop('server', None)
+        self._server_port = kwargs.pop('server_port', None)
         self._docs = make_docs(*args, **kwargs)
         if not all(isinstance(doc, collections.Mapping) for doc in self._docs):
             raise TypeError('each doc must be a dict')
