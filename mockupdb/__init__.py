@@ -108,22 +108,20 @@ def go(fn, *args, **kwargs):
     """TODO: doc."""
     result = [None]
     error = []
-    event = threading.Event()
 
     def target():
         try:
             result[0] = fn(*args, **kwargs)
         except Exception:
             error.extend(sys.exc_info())
-        event.set()
 
     t = threading.Thread(target=target)
     t.daemon = True
     t.start()
 
     def get_result(timeout=10):
-        event.wait(timeout)
-        if not event.is_set():
+        t.join(timeout)
+        if t.is_alive():
             raise AssertionError('timed out waiting for %r' % fn)
         if error:
             reraise(*error)
