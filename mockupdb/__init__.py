@@ -601,6 +601,15 @@ class Matcher(object):
         >>> Matcher({'a': 1}).matches({'a': 1, 'b': 1})
         True
 
+        Order matters if you use an OrderedDict:
+
+        >>> doc0 = OrderedDict([('a', 1), ('b', 1)])
+        >>> doc1 = OrderedDict([('b', 1), ('a', 1)])
+        >>> Matcher(doc0).matches(doc0)
+        True
+        >>> Matcher(doc0).matches(doc1)
+        False
+
         The matcher must have the same number of documents as the request:
 
         >>> Matcher().matches()
@@ -687,8 +696,16 @@ class Matcher(object):
         if len(self._prototype.docs) not in (0, len(request.docs)):
             return False
         for i, doc in enumerate(self._prototype.docs):
+            other_doc = request.docs[i]
             for key, value in doc.items():
-                if request.docs[i].get(key) != value:
+                if other_doc.get(key) != value:
+                    return False
+            if isinstance(doc, (OrderedDict, bson.SON)):
+                if not isinstance(other_doc, (OrderedDict, bson.SON)):
+                    raise TypeError(
+                        "Can't compare ordered and unordered document types:"
+                        " %r, %r" % (doc, other_doc))
+                if not seq_match(doc.keys(), other_doc.keys()):
                     return False
         return True
 
@@ -1278,6 +1295,42 @@ def docs_repr(*args):
             sio.write(u', ')
         sio.write(text_type(bson.json_util.dumps(doc)))
     return sio.getvalue()
+
+
+def seq_match(seq0, seq1):
+    """True if seq0 is a subset of seq1 and their elements are in same order.
+
+    >>> seq_match([], [])
+    True
+    >>> seq_match([1], [1])
+    True
+    >>> seq_match([1, 1], [1])
+    False
+    >>> seq_match([1], [1, 2])
+    True
+    >>> seq_match([1, 1], [1, 1])
+    True
+    >>> seq_match([3], [1, 2, 3])
+    True
+    >>> seq_match([1, 3], [1, 2, 3])
+    True
+    >>> seq_match([2, 1], [1, 2, 3])
+    False
+    """
+    len_seq1 = len(seq1)
+    if len_seq1 < len(seq0):
+        return False
+    seq1_idx = 0
+    for i, elem in enumerate(seq0):
+        while seq1_idx < len_seq1:
+            if seq1[seq1_idx] == elem:
+                break
+            seq1_idx += 1
+        if seq1_idx >= len_seq1 or seq1[seq1_idx] != elem:
+            return False
+        seq1_idx += 1
+
+    return True
 
 
 def interactive_server(port=27017, verbose=True):
