@@ -705,7 +705,7 @@ class Matcher(object):
                     raise TypeError(
                         "Can't compare ordered and unordered document types:"
                         " %r, %r" % (doc, other_doc))
-                if not seq_match(doc.keys(), other_doc.keys()):
+                if not seq_match(list(doc.keys()), list(other_doc.keys())):
                     return False
         return True
 
