@@ -332,6 +332,7 @@ Test Server Discovery And Monitoring
 
 To test PyMongo's server monitor, make the server a secondary:
 
+   >>> import time
    >>> ismaster_reply = OpReply({
    ...     'ismaster': False,
    ...     'secondary': True,
@@ -344,15 +345,14 @@ Connect to the replica set and try to insert:
 
    >>> client = MongoClient(server.uri, replicaSet='rs')
    >>> collection = client.db.coll
+   >>> starting_count = server.requests_count
    >>> future = go(collection.insert_one, {'_id': 'my id'})
 
 PyMongo should call "ismaster" every 10 milliseconds, more or less:
 
-   >>> starting_count = server.requests_count
-   >>> import time
    >>> time.sleep(1)
    >>> ismasters_count = server.requests_count - starting_count
-   >>> assert 25 < ismasters_count <= 100
+   >>> assert 50 < ismasters_count <= 100
 
 Back to normal:
 
