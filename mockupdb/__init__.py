@@ -111,6 +111,8 @@ __all__ = [
 
 def go(fn, *args, **kwargs):
     """TODO: doc."""
+    if not callable(fn):
+        raise TypeError('go() requires a function, not %r' % fn)
     result = [None]
     error = []
 
@@ -118,7 +120,9 @@ def go(fn, *args, **kwargs):
         try:
             result[0] = fn(*args, **kwargs)
         except Exception:
-            error.extend(sys.exc_info())
+            # Are we in interpreter shutdown?
+            if sys:
+                error.extend(sys.exc_info())
 
     t = threading.Thread(target=target)
     t.daemon = True
