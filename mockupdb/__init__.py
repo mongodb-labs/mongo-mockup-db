@@ -1340,8 +1340,8 @@ def interactive_server(port=27017, verbose=True):
     `~.MockupDB.stop`.
     """
     server = MockupDB(port=port,
-                         verbose=verbose,
-                         request_timeout=int(1e6))
+                      verbose=verbose,
+                      request_timeout=int(1e6))
     server.autoresponds({})
     server.autoresponds(OpQuery, {'a': 1}, {'a': 2})
     server.autoresponds('ismaster')
