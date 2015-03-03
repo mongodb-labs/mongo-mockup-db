@@ -22,6 +22,11 @@ Request Spec
 
 TODO
 
+Matcher Spec
+------------
+
+TODO
+
 Reply Spec
 ----------
 
@@ -243,6 +248,17 @@ class Request(object):
     def client_port(self):
         """Client connection's TCP port."""
         return self._client.getpeername()[1]
+
+    def assert_matches(self, *args, **kwargs):
+        """Assert this matches a `matcher spec`_ and return self."""
+        matcher = make_matcher(*args, **kwargs)
+        if not matcher.matches(self):
+            raise AssertionError('%r does not match %r' % (self, matcher))
+        return self
+
+    def matches(self, *args, **kwargs):
+        """True if this matches a `matcher spec`_."""
+        return make_matcher(*args, **kwargs).matches(self)
 
     def replies(self, *args, **kwargs):
         """Send an `OpReply` to the client.
@@ -726,6 +742,45 @@ def _synchronized(meth):
     return wrapper
 
 
+class _AutoResponder(object):
+    def __init__(self, matcher, *args, **kwargs):
+        # Error we might throw.
+        # TODO: use inspect.formatargvalues everywhere.
+        type_err = TypeError('Bad arguments: autoresponds(%r, *%r, **%r)'
+                             % (matcher, args, kwargs))
+        if callable(matcher):
+            if args or kwargs:
+                raise type_err
+            self._matcher = Matcher()  # Match anything.
+            self._handler = matcher
+            self._args = ()
+            self._kwargs = {}
+        else:
+            self._matcher = make_matcher(matcher)
+            if args and callable(args[0]):
+                self._handler = args[0]
+                if args[1:] or kwargs:
+                    raise type_err
+                self._args = ()
+                self._kwargs = {}
+            else:
+                self._handler = None
+                self._args = args
+                self._kwargs = kwargs
+
+    def handle(self, request):
+        if self._matcher.matches(request):
+            if self._handler:
+                return self._handler(request)
+            else:
+                # Command.replies() overrides Request.replies() with special
+                # logic, which is why we saved args and kwargs until now to
+                # pass it into request.replies, instead of making an OpReply
+                # ourselves in __init__.
+                request.replies(*self._args, **self._kwargs)
+                return True
+
+
 class MockupDB(object):
     """A simulated mongod or mongos.
 
@@ -890,51 +945,93 @@ class MockupDB(object):
         self.pop().hangup()
 
     @_synchronized
-    def autoresponds(self, request, *args, **kwargs):
+    def autoresponds(self, matcher, *args, **kwargs):
         """Send a canned reply to all matching client requests.
         
-        ``request`` is a `Matcher` or an instance of `OpInsert`, `OpQuery`,
-        etc. The remaining arguments are a `reply spec`:
+        ``matcher`` is a `Matcher` or a command name, or an instance of
+        `OpInsert`, `OpQuery`, etc.
 
         >>> s = MockupDB()
-        >>> s.autoresponds('ismaster')
-        >>> s.autoresponds('foo')
-        >>> s.autoresponds('bar', ok=0, errmsg='bad')
-        >>> s.autoresponds('baz', {'key': 'value'})
-        >>> s.autoresponds(OpQuery(namespace='db.collection'),
-        ...                [{'_id': 1}, {'_id': 2}])
         >>> port = s.run()
         >>>
         >>> from pymongo import MongoClient
-        >>> client = MongoClient(s.uri)
+        >>> client = MongoClient(s.uri, socketTimeoutMS=100)
+        >>> s.autoresponds('ismaster')
         >>> client.admin.command('ismaster') == {'ok': 1}
         True
-        >>> client.db.command('foo') == {'ok': 1}
-        True
+
+        The remaining arguments are a `reply spec`:
+
+        >>> s.autoresponds('bar', ok=0, errmsg='err')
         >>> client.db.command('bar')
         Traceback (most recent call last):
         ...
-        OperationFailure: command SON([('bar', 1)]) on namespace db.$cmd failed: bad
-        >>> client.db.command('baz') == {'ok': 1, 'key': 'value'}
-        True
+        OperationFailure: command SON([('bar', 1)]) on namespace db.$cmd failed: err
+        >>> s.autoresponds(OpQuery(namespace='db.collection'),
+        ...                [{'_id': 1}, {'_id': 2}])
         >>> list(client.db.collection.find()) == [{'_id': 1}, {'_id': 2}]
         True
 
         If the request currently at the head of the queue matches, it is popped
         and replied to. Future matching requests skip the queue.
 
+        >>> future = go(client.db.command, 'baz')
+        >>> s.autoresponds('baz', {'key': 'value'})
+        >>> future() == {'ok': 1, 'key': 'value'}
+        True
+
         Responders are applied in order, most recently added first, until one
-        matches.
+        matches:
+
+        >>> s.autoresponds('baz')
+        >>> client.db.command('baz') == {'ok': 1}
+        True
+
+        You can pass a request handler in place of the reply spec. Return
+        True if you handled the request:
+
+        >>> s.autoresponds('baz', lambda r: r.ok(a=2) or True)
+        >>> client.db.command('baz') == {'ok': 1, 'a': 2}
+        True
+
+        Otherwise the request is checked against the remaining responders,
+        or enqueued if none match.
+
+        You can pass the handler is the only argument so it receives *all*
+        requests. For exampleyYou could log them, then return None to allow
+        other handlers to run:
+
+        >>> def logger(request):
+        ...     if not request.matches('ismaster'):
+        ...         print('logging: %r' % request)
+        >>> s.autoresponds(logger)
+        >>> client.db.command('baz') == {'ok': 1, 'a': 2}
+        logging: Command({"baz": 1}, namespace="db")
+        True
+
+        The synonym `subscribe` better expresses your intent if your handler
+        never returns True:
+
+        >>> s.subscribe(logger)
+
+        .. doctest:
+            :hide:
+
+            >>> client.close()
+            >>> s.stop()
         """
-        matcher = request if isinstance(request, Matcher) else Matcher(request)
-        self._autoresponders.append((matcher, args, kwargs))
+        responder = _AutoResponder(matcher, *args, **kwargs)
+        self._autoresponders.append(responder)
         try:
             request = self._request_q.peek(block=False)
         except Empty:
             return
 
-        if matcher.matches(request):
-            self._request_q.get_nowait().reply(*args, **kwargs)
+        if responder.handle(request):
+            self._request_q.get_nowait()  # Pop it.
+
+    subscribe = autoresponds
+    """Synonym for `autoresponds`."""
 
     @property
     def address(self):
@@ -1039,21 +1136,20 @@ class MockupDB(object):
         while not self._stopped:
             try:
                 with self._unlock():
-                    request_msg = mock_server_receive_request(client, self)
+                    request = mock_server_receive_request(client, self)
 
                 self._requests_count += 1
                 if self._verbose:
-                    print('%d\t%r' % (request_msg.client_port, request_msg))
+                    print('%d\t%r' % (request.client_port, request))
 
                 # Give most recently added responders precedence.
-                for matcher, args, kwargs in reversed(self._autoresponders):
-                    if matcher.matches(request_msg):
+                for responder in reversed(self._autoresponders):
+                    if responder.handle(request):
                         if self._verbose:
-                            print('\tautoresponding')
-                        request_msg.reply(*args, **kwargs)
+                            print('\t(autoresponse)')
                         break
                 else:
-                    self._request_q.put(request_msg)
+                    self._request_q.put(request)
             except socket.error as error:
                 if error.errno == errno.EAGAIN:
                     continue
