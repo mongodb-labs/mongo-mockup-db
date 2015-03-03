@@ -66,17 +66,20 @@ except ImportError:
 
 import bson                 # From PyMongo 3.0.
 import bson.codec_options   # From PyMongo 3.0.
+import bson.json_util       # From PyMongo 3.0.
 
 CODEC_OPTIONS = bson.codec_options.CodecOptions(as_class=OrderedDict)
 
 PY3 = sys.version_info[0] == 3
 if PY3:
     string_type = str
+    text_type = str
 
     def reraise(exctype, value, trace=None):
         raise exctype(str(value)).with_traceback(trace)
 else:
     string_type = basestring
+    text_type = unicode
 
     # "raise x, y, z" raises SyntaxError in Python 3.
     exec("""def reraise(exctype, value, trace=None):
@@ -297,7 +300,7 @@ class Request(object):
                          if self._flags & value))
 
         if self._namespace:
-            rep += ', namespace=%s' % unprefixed(self._namespace)
+            rep += ', namespace="%s"' % self._namespace
 
         return rep + ')'
 
@@ -831,8 +834,8 @@ class MockupDB(object):
         >>> s.got(Command('foo', key='value'))
         False
         >>> s.ok()
-        >>> future()
-        {u'ok': 1}
+        >>> future() == {'ok': 1}
+        True
         >>> s.stop()
         """
         timeout = kwargs.pop('timeout', self._request_timeout)
@@ -889,18 +892,18 @@ class MockupDB(object):
         >>>
         >>> from pymongo import MongoClient
         >>> client = MongoClient(s.uri)
-        >>> client.admin.command('ismaster')
-        {u'ok': 1}
-        >>> client.db.command('foo')
-        {u'ok': 1}
+        >>> client.admin.command('ismaster') == {'ok': 1}
+        True
+        >>> client.db.command('foo') == {'ok': 1}
+        True
         >>> client.db.command('bar')
         Traceback (most recent call last):
         ...
         OperationFailure: command SON([('bar', 1)]) on namespace db.$cmd failed: bad
-        >>> client.db.command('baz')
-        {u'ok': 1, u'key': u'value'}
-        >>> list(client.db.collection.find())
-        [{u'_id': 1}, {u'_id': 2}]
+        >>> client.db.command('baz') == {'ok': 1, 'key': 'value'}
+        True
+        >>> list(client.db.collection.find()) == [{'_id': 1}, {'_id': 2}]
+        True
 
         If the request currently at the head of the queue matches, it is popped
         and replied to. Future matching requests skip the queue.
@@ -959,6 +962,12 @@ class MockupDB(object):
     def verbose(self):
         """If verbose logging is turned on."""
         return self._verbose
+
+    @verbose.setter
+    def verbose(self, value):
+        if not isinstance(value, bool):
+            raise TypeError('value must be True or False, not %r' % value)
+        self._verbose = value
 
     @property
     def requests_count(self):
@@ -1160,7 +1169,7 @@ def make_docs(*args, **kwargs):
             raise value_err
         return list(args[0])
 
-    if isinstance(args[0], string_type):
+    if isinstance(args[0], (string_type, text_type)):
         # OpReply('ismaster', me='a.com').
         if args[1:]:
             raise value_err
@@ -1184,9 +1193,9 @@ def make_matcher(*args, **kwargs):
     >>> make_matcher()
     Matcher(Request())
     >>> make_matcher({'ismaster': 1}, namespace='admin')
-    Matcher(Request({'ismaster': 1}, namespace='admin'))
+    Matcher(Request({"ismaster": 1}, namespace="admin"))
     >>> make_matcher({}, {'_id': 1})
-    Matcher(Request({}, {'_id': 1}))
+    Matcher(Request({}, {"_id": 1}))
 
     See more examples in tutorial.
     """
@@ -1218,11 +1227,11 @@ def make_reply(*args, **kwargs):
     >>> make_reply()
     OpReply()
     >>> make_reply(OpReply({'ok': 0}))
-    OpReply({'ok': 0})
+    OpReply({"ok": 0})
     >>> make_reply(0)
-    OpReply({'ok': 0})
+    OpReply({"ok": 0})
     >>> make_reply(key='value')
-    OpReply({'key': 'value'})
+    OpReply({"key": "value"})
 
     See more examples in tutorial.
     """
@@ -1249,23 +1258,25 @@ def docs_repr(*args):
     Preserve order, remove 'u'-prefix on unicodes in Python 2:
 
     >>> print(docs_repr(OrderedDict([(u'_id', 2)])))
-    {'_id': 2}
+    {"_id": 2}
     >>> print(docs_repr(OrderedDict([(u'_id', 2), (u'a', u'b')]),
     ...                 OrderedDict([(u'a', 1)])))
-    {'_id': 2, 'a': 'b'}, {'a': 1}
+    {"_id": 2, "a": "b"}, {"a": 1}
+    >>>
+    >>> import datetime
+    >>> now = datetime.datetime.utcfromtimestamp(123456)
+    >>> print(docs_repr(OrderedDict([(u'ts', now)])))
+    {"ts": {"$date": 123456000}}
+    >>>
+    >>> oid = bson.ObjectId(b'123456781234567812345678')
+    >>> print(docs_repr(OrderedDict([(u'oid', oid)])))
+    {"oid": {"$oid": "123456781234567812345678"}}
     """
     sio = StringIO()
     for doc_idx, doc in enumerate(args):
         if doc_idx > 0:
             sio.write(u', ')
-        sio.write(u'{')
-        for i, (key, value) in enumerate(doc.items()):
-            if i > 0:
-                sio.write(u', ')
-            sio.write(unprefixed(key))
-            sio.write(u': ')
-            sio.write(unprefixed(value))
-        sio.write(u'}')
+        sio.write(text_type(bson.json_util.dumps(doc)))
     return sio.getvalue()
 
 

@@ -33,7 +33,7 @@ respond until you tell it to:
 
    >>> request = server.receives()
    >>> request
-   Command({'ismaster': 1}, namespace='admin')
+   Command({"ismaster": 1}, namespace="admin")
 
 We respond:
 
@@ -66,9 +66,7 @@ Send an unacknowledged OP_INSERT:
    >>> collection.insert_one({'_id': 1})  # doctest: +ELLIPSIS
    <pymongo.results.InsertOneResult object at ...>
    >>> server.receives()
-   OpInsert({'_id': 1}, namespace='db.coll')
-
-(For beauty's sake, MockupDB removes the "u" prefix from strings in its output.)
+   OpInsert({"_id": 1}, namespace="db.coll")
 
 If PyMongo sends an unacknowledged OP_INSERT it does not block
 waiting for you to call `~Request.replies`, but for all other operations it
@@ -86,10 +84,10 @@ on a thread and returns a handle to its future outcome. Meanwhile, wait for the
 client's request to arrive on the main thread:
 
    >>> server.receives()
-   OpInsert({'_id': 2}, namespace='db.coll')
+   OpInsert({"_id": 2}, namespace="db.coll")
    >>> gle = server.receives()
    >>> gle
-   Command({'getlasterror': 1L}, namespace='db')
+   Command({"getlasterror": 1}, namespace="db")
 
 You could respond with ``{'ok': 1, 'err': None}``, or for convenience:
 
@@ -120,7 +118,11 @@ Test that PyMongo now uses a write command instead of a legacy insert:
    >>> future = go(collection.insert_one, {'_id': 1})
    >>> request = server.receives()
    >>> request
-   Command({'insert': 'coll', 'ordered': True, 'documents': [{'_id': 1}]}, namespace='db')
+   Command({"insert": "coll", "ordered": true, "documents": [{"_id": 1}]}, namespace="db")
+
+(Note how MockupDB requests and replies are rendered as JSON, not Python.
+This is mainly to show you the *order* of keys and values, which is sometimes
+important when testing a driver.)
 
 To unblock the background thread, send the default reply of ``{ok: 1}}``:
 
@@ -158,8 +160,8 @@ matches the pattern:
    >>> request = server.receives('commandBar') # doctest: +NORMALIZE_WHITESPACE
    Traceback (most recent call last):
      ...
-   AssertionError: expected to receive Command({'commandBar': 1}),
-     got Command({'commandFoo': 1})
+   AssertionError: expected to receive Command({"commandBar": 1}),
+     got Command({"commandFoo": 1})
 
 Even if the pattern does not match, the request is still popped from the
 queue.
@@ -187,7 +189,6 @@ little loop:
    ...
    >>> future = go(loop)
    >>>
-   >>> client = MongoClient(server.uri)
    >>> list(client.db.coll.find()) == [{'a': 1}, {'a': 2}]
    True
    >>> list(client.db.coll.find({'a': {'$gt': 1}})) == [{'a': 2}]
@@ -217,6 +218,7 @@ You can even implement the "shutdown" command:
    >>> future()
    >>> server.running
    False
+   >>> client.close()
 
 To show off a difficult test that MockupDB makes easy, assert that
 PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
@@ -225,15 +227,21 @@ PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
    >>> server.autoresponds('ismaster', maxWireVersion=3)
    >>> port = server.run()
    >>>
-   >>> collection = MongoClient(server.uri, w=1).db.coll
+   >>> # Specify w=1. This is distinct from the default write concern.
+   >>> client = MongoClient(server.uri, w=1)
+   >>> collection = client.db.coll
    >>> future = go(collection.insert_one, {'_id': 4})
    >>> server.receives({'writeConcern': {'w': 1}}).sends()
+   >>> client.close()
 
 ... but not by default:
 
-   >>> collection = MongoClient(server.uri).db.coll
+   >>> # Accept the default write concern.
+   >>> client = MongoClient(server.uri)
+   >>> collection = client.db.coll
    >>> future = go(collection.insert_one, {'_id': 5})
    >>> assert 'writeConcern' not in server.receives().doc
+   >>> client.close()
 
 Test Cursor Behavior
 --------------------
@@ -342,9 +350,9 @@ PyMongo should call "ismaster" every 10 milliseconds, more or less:
 
    >>> starting_count = server.requests_count
    >>> import time
-   >>> time.sleep(0.1)
+   >>> time.sleep(1)
    >>> ismasters_count = server.requests_count - starting_count
-   >>> assert 5 < ismasters_count <= 10
+   >>> assert 25 < ismasters_count <= 100
 
 Back to normal:
 
