@@ -1199,7 +1199,14 @@ class MockupDB(object):
 
     @property
     def request(self):
-        """The currently enqueued `Request`, or None."""
+        """The currently enqueued `Request`, or None.
+
+        .. warning:: This property is useful to check what the current request
+           is, but the pattern ``server.request.replies()`` is dangerous: you
+           must follow it with ``server.pop()`` or the current request remains
+           enqueued. Better to reply with ``server.pop().replies()`` than
+           ``server.request.replies()`` or any variation on it.
+        """
         return self.got() or None
 
     @property
