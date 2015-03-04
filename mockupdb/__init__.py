@@ -332,32 +332,48 @@ class Request(object):
 
         The default reply to a command is ``{'ok': 1}``, otherwise the default
         is empty (no documents).
+
+        Returns True so it is suitable as an `~MockupDB.autoresponds` handler.
         """
         self._replies(*args, **kwargs)
+        return True
 
     ok = send = sends = reply = replies
     """Synonym for `.replies`."""
 
     def fail(self, err='MockupDB query failure', *args, **kwargs):
-        """Reply to a query with the QueryFailure flag and an '$err' key."""
+        """Reply to a query with the QueryFailure flag and an '$err' key.
+
+        Returns True so it is suitable as an `~MockupDB.autoresponds` handler.
+        """
         kwargs.setdefault('flags', 0)
         kwargs['flags'] |= REPLY_FLAGS['QueryFailure']
         kwargs['$err'] = err
         self.replies(*args, **kwargs)
+        return True
 
     def command_err(self, code=1, errmsg='MockupDB command failure',
                     *args, **kwargs):
-        """Error reply to a command."""
+        """Error reply to a command.
+
+        Returns True so it is suitable as an `~MockupDB.autoresponds` handler.
+        """
         kwargs.setdefault('ok', 0)
         kwargs['code'] = code
         kwargs['errmsg'] = errmsg
         self.replies(*args, **kwargs)
+        return True
 
     def hangup(self):
-        """Close the connection."""
+        """Close the connection.
+
+        Returns True so it is suitable as an `~MockupDB.autoresponds` handler.
+        """
         if self._verbose:
             print('\t%d\thangup' % self.client_port)
         self._client.close()
+        return True
+
     hangs_up = hangup
     """Synonym for `.hangup`."""
 
@@ -482,6 +498,8 @@ class Command(OpQuery):
 
         Defaults to ``{ok: 1, err: null}``. Add or override values by passing
         keyword arguments.
+
+        Returns True so it is suitable as an `~MockupDB.autoresponds` handler.
         """
         kwargs.setdefault('err', None)
         return self.replies(**kwargs)
@@ -1063,15 +1081,20 @@ class MockupDB(object):
         You can pass a request handler in place of the reply spec. Return
         True if you handled the request:
 
-        >>> s.autoresponds('baz', lambda r: r.ok(a=2) or True)
+        >>> s.autoresponds('baz', lambda r: r.ok(a=2))
+
+        The standard `Request.ok`, `~Request.replies`, `~Request.fail`,
+        `~Request.hangup` and so on all return True to make them suitable
+        as handler functions.
+
         >>> client.db.command('baz') == {'ok': 1, 'a': 2}
         True
 
-        Otherwise the request is checked against the remaining responders,
-        or enqueued if none match.
+        If the request is not handled, it is checked against the remaining
+        responders, or enqueued if none match.
 
         You can pass the handler is the only argument so it receives *all*
-        requests. For exampleyYou could log them, then return None to allow
+        requests. For example you could log them, then return None to allow
         other handlers to run:
 
         >>> def logger(request):

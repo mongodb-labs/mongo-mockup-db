@@ -38,11 +38,13 @@ respond until you tell it to:
 We respond:
 
    >>> request.replies({'ok': 1})
+   True
 
 In fact this is the default response, so the next time the client calls
 "ismaster" you could just say:
 
    >>> server.receives().replies()
+   True
 
 The `~MockupDB.receives` call blocks until it receives a request from the
 client. Responding to each "ismaster" call is tiresome, so tell the client
@@ -54,6 +56,9 @@ to send the default response to all ismaster calls:
 
 A call to `~MockupDB.receives` now blocks waiting for some request that
 does *not* match "ismaster".
+
+(Notice that `~Request.replies` returns True. This makes more advanced uses of
+`~MockupDB.autoresponds` easier, see the reference document.)
 
 Reply To Legacy Writes
 ----------------------
@@ -92,6 +97,7 @@ client's request to arrive on the main thread:
 You could respond with ``{'ok': 1, 'err': None}``, or for convenience:
 
    >>> gle.replies_to_gle()
+   True
 
 The server's getlasterror response unblocks the client, so its future
 contains the return value of `~pymongo.collection.Collection.insert_one`,
@@ -127,12 +133,14 @@ important when testing a driver.)
 To unblock the background thread, send the default reply of ``{ok: 1}}``:
 
    >>> request.reply()
+   True
    >>> assert 1 == future().inserted_id
 
 Simulate a command error:
 
    >>> future = go(collection.insert_one, {'_id': 1})
    >>> server.receives(insert='coll').command_err(11000, 'eek!')
+   True
    >>> future()
    Traceback (most recent call last):
      ...
@@ -142,6 +150,7 @@ Or a network error:
 
    >>> future = go(collection.insert_one, {'_id': 1})
    >>> server.receives(insert='coll').hangup()
+   True
    >>> future()
    Traceback (most recent call last):
      ...
@@ -232,6 +241,7 @@ PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
    >>> collection = client.db.coll
    >>> future = go(collection.insert_one, {'_id': 4})
    >>> server.receives({'writeConcern': {'w': 1}}).sends()
+   True
    >>> client.close()
 
 ... but not by default:
@@ -251,6 +261,7 @@ Test what happens when a query fails:
    >>> cursor = collection.find().batch_size(1)
    >>> future = go(next, cursor)
    >>> server.receives(OpQuery).fail()
+   True
    >>> future()
    Traceback (most recent call last):
      ...
@@ -276,6 +287,7 @@ We start a cursor with its first batch:
    >>> future = go(next, cursor)
    >>> reply = OpReply({'first': 'doc'}, cursor_id=123)
    >>> server.receives(OpQuery).replies(reply)
+   True
    >>> future() == {'first': 'doc'}
    True
    >>> cursor.alive
@@ -295,6 +307,7 @@ You can simulate normal querying, too:
    >>> future = go(list, cursor)
    >>> documents = [{'_id': 1}, {'foo': 'bar'}, {'beauty': True}]
    >>> server.receives(OpQuery).replies(OpReply(documents[0], cursor_id=123))
+   True
    >>> del documents[0]
    >>> num_sent = 1
    >>> while documents:
@@ -314,6 +327,7 @@ You can simulate normal querying, too:
    ...     num_sent += len(batch)
    ...
    num_to_return 2
+   True
 
 Observe a quirk in the wire protocol: MongoDB treats an initial query
 with nToReturn of 1 the same as -1 and closes the cursor after the first
@@ -358,6 +372,7 @@ Back to normal:
 
    >>> ismaster_reply.update(ismaster=True, secondary=False)
    >>> server.gets(insert='coll').ok()
+   True
    >>> future().inserted_id
    'my id'
 
