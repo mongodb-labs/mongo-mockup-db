@@ -489,7 +489,7 @@ class Command(OpQuery):
         else:
             if len(reply.docs) > 1:
                 raise ValueError('Command reply with multiple documents: %s'
-                                 % reply.docs)
+                                 % (reply.docs, ))
             reply.doc.setdefault('ok', 1)
         super(Command, self)._replies(reply)
 
