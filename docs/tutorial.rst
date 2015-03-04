@@ -51,6 +51,7 @@ client. Responding to each "ismaster" call is tiresome, so tell the client
 to send the default response to all ismaster calls:
 
    >>> server.autoresponds('ismaster')
+   _AutoResponder(Matcher(Request({"ismaster": 1})), (), {})
    >>> client.admin.command('ismaster') == {'ok': 1}
    True
 
@@ -116,7 +117,7 @@ MockupDB runs the most recently added autoresponders first, and uses the
 first that matches. Override the previous "ismaster" responder to upgrade
 the wire protocol:
 
-   >>> server.autoresponds('ismaster', maxWireVersion=3)
+   >>> responder = server.autoresponds('ismaster', maxWireVersion=3)
 
 Test that PyMongo now uses a write command instead of a legacy insert:
 
@@ -233,7 +234,7 @@ To show off a difficult test that MockupDB makes easy, assert that
 PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
 
    >>> server = MockupDB()
-   >>> server.autoresponds('ismaster', maxWireVersion=3)
+   >>> responder = server.autoresponds('ismaster', maxWireVersion=3)
    >>> port = server.run()
    >>>
    >>> # Specify w=1. This is distinct from the default write concern.
@@ -353,7 +354,7 @@ To test PyMongo's server monitor, make the server a secondary:
    ...     'setName': 'rs',
    ...     'maxWireVersion': 3,
    ...     'hosts': ['%s:%d' % server.address]})
-   >>> server.autoresponds('ismaster', ismaster_reply)
+   >>> responder = server.autoresponds('ismaster', ismaster_reply)
 
 Connect to the replica set and try to insert:
 
