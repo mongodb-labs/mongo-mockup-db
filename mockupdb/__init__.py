@@ -882,8 +882,6 @@ class MockupDB(object):
       - `port`: listening port number. If not specified, choose
         some unused port and return the port number from `run`.
       - `verbose`: if ``True``, print requests and replies to stdout.
-      - `replicaSet`: a string, the replica set name. This only affects the
-        value of `uri`.
       - `request_timeout`: seconds to wait for the next client request, or else
         assert. Default 10 seconds. Pass int(1e6) to disable.
       - `reply_timeout`: seconds to wait for a call to `Request.replies`, or
@@ -892,11 +890,10 @@ class MockupDB(object):
       - `auto_ismaster`: pass ``True`` to autorespond ``{'ok': 1}`` to
         ismaster requests, or pass a dict or `OpReply`.
     """
-    def __init__(self, port=None, verbose=False, replicaSet=None,
+    def __init__(self, port=None, verbose=False,
                  request_timeout=10, reply_timeout=10, auto_ismaster=None):
         self._address = ('localhost', port)
         self._verbose = verbose
-        self._replica_set = replicaSet  # TODO remove?
 
         # TODO: test & implement. Should be much shorter?
         self._request_timeout = request_timeout
@@ -1165,18 +1162,7 @@ class MockupDB(object):
     def uri(self):
         """Connection string to pass to `~pymongo.mongo_client.MongoClient`."""
         assert self.host and self.port
-        uri = 'mongodb://%s:%s' % self._address
-        if self._replica_set is not None:
-            uri += '/?replicaSet=%s' % self._replica_set
-        return uri
-
-    @property
-    def replica_set_name(self):
-        """Replica set name or None.
-
-        This is the value passed as ``replicaSet``. It only affects the `uri`.
-        """
-        return self._replica_set
+        return 'mongodb://%s:%s' % self._address
 
     @property
     def verbose(self):
