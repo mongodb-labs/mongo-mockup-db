@@ -1050,7 +1050,7 @@ class MockupDB(object):
         >>> port = s.run()
         >>>
         >>> from pymongo import MongoClient
-        >>> client = MongoClient(s.uri, socketTimeoutMS=100)
+        >>> client = MongoClient(s.uri)
         >>> responder = s.autoresponds('ismaster')
         >>> client.admin.command('ismaster') == {'ok': 1}
         True
