@@ -866,7 +866,7 @@ def _synchronized(meth):
 class _AutoResponder(object):
     def __init__(self, server, matcher, *args, **kwargs):
         self._server = server
-        if callable(matcher):
+        if inspect.isfunction(matcher) or inspect.ismethod(matcher):
             if args or kwargs:
                 raise_args_err()
             self._matcher = Matcher()  # Match anything.
@@ -1097,6 +1097,13 @@ class MockupDB(object):
         ...                            [{'_id': 1}, {'_id': 2}])
         >>> list(client.db.collection.find()) == [{'_id': 1}, {'_id': 2}]
         True
+        >>> responder = s.autoresponds(OpQuery, {'a': 1}, {'a': 2})
+        >>> list(client.db.collection.find()) == [{'a': 1}, {'a': 2}]
+        True
+
+        Remove an autoresponder like:
+
+        >>> responder.cancel()
 
         If the request currently at the head of the queue matches, it is popped
         and replied to. Future matching requests skip the queue.
