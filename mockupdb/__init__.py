@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 """Simulate a MongoDB server.
 
 Request Spec
@@ -33,6 +31,8 @@ Reply Spec
 TODO
 
 """
+
+from __future__ import print_function
 
 __author__ = 'A. Jesse Jiryu Davis'
 __email__ = 'jesse@mongodb.com'
@@ -317,7 +317,7 @@ class Request(object):
         return self._client.getpeername()[1]
 
     def assert_matches(self, *args, **kwargs):
-        """Assert this matches a `matcher spec`_ and return self."""
+        """Assert this matches a `matcher spec`_  and return self."""
         matcher = make_matcher(*args, **kwargs)
         if not matcher.matches(self):
             raise AssertionError('%r does not match %r' % (self, matcher))
@@ -647,7 +647,7 @@ class OpReply(object):
 class Matcher(object):
     """Matches a subset of `.Request` objects.
 
-    Initialized with a `request spec`.
+    Initialized with a `request spec`_.
 
     Used by `~MockupDB.receives` to assert the client sent the expected request,
     and by `~MockupDB.got` to test if it did and return ``True`` or ``False``.
@@ -662,7 +662,7 @@ class Matcher(object):
             self.opcode = self._prototype.opcode
 
     def matches(self, *args, **kwargs):
-        """Take a `request spec` and return ``True`` or ``False``.
+        """Take a `request spec`_ and return ``True`` or ``False``.
 
         .. request-matching rules::
 
@@ -958,7 +958,7 @@ class MockupDB(object):
     """Synonym for `receives`."""
 
     def got(self, *args, **kwargs):
-        """Does `.request` match the given `request spec`?
+        """Does `.request` match the given `request spec`_?
 
         >>> s = MockupDB(auto_ismaster=True)
         >>> port = s.run()
@@ -1033,7 +1033,7 @@ class MockupDB(object):
         >>> client.admin.command('ismaster') == {'ok': 1}
         True
 
-        The remaining arguments are a `reply spec`:
+        The remaining arguments are a `reply spec`_:
 
         >>> s.autoresponds('bar', ok=0, errmsg='err')
         >>> client.db.command('bar')
@@ -1104,7 +1104,7 @@ class MockupDB(object):
             self._request_q.get_nowait()  # Pop it.
 
     subscribe = autoresponds
-    """Synonym for `autoresponds`."""
+    """Synonym for `.autoresponds`."""
 
     @property
     def address(self):
@@ -1371,7 +1371,7 @@ def make_docs(*args, **kwargs):
 
 
 def make_matcher(*args, **kwargs):
-    """Make a Matcher from a `request spec`:
+    """Make a Matcher from a `request spec`_:
 
     >>> make_matcher()
     Matcher(Request())
