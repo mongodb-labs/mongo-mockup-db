@@ -671,13 +671,9 @@ class Matcher(object):
     and by `~MockupDB.got` to test if it did and return ``True`` or ``False``.
     Used by `.autoresponds` to match requests with autoresponses.
     """
-    opcode = None  # Default.
-
     def __init__(self, *args, **kwargs):
         self._kwargs = kwargs
         self._prototype = make_prototype_request(*args, **kwargs)
-        if args or kwargs:
-            self.opcode = self._prototype.opcode
 
     def matches(self, *args, **kwargs):
         """Take a `request spec`_ and return ``True`` or ``False``.
@@ -783,7 +779,7 @@ class Matcher(object):
         """
         # TODO: just take a Request, not args and kwargs?
         request = make_prototype_request(*args, **kwargs)
-        if self.opcode not in (None, request.opcode):
+        if self._prototype.opcode not in (None, request.opcode):
             return False
         for name in dir(self._prototype):
             if name.startswith('_') or name in ('doc', 'docs'):
