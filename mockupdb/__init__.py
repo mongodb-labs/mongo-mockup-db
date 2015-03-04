@@ -94,7 +94,7 @@ else:
 
 # Do not export "main".
 __all__ = [
-    'MockupDB', 'go', 'interactive_server',
+    'MockupDB', 'go', 'going', 'interactive_server',
 
     'OP_REPLY', 'OP_UPDATE', 'OP_INSERT', 'OP_QUERY', 'OP_GET_MORE',
     'OP_DELETE', 'OP_KILL_CURSORS',
