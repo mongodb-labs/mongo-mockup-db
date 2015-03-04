@@ -137,6 +137,12 @@ To unblock the background thread, send the default reply of ``{ok: 1}}``:
    True
    >>> assert 1 == future().inserted_id
 
+If you don't need the future's return value, you can express this more tersely:
+
+   >>> with going(collection.insert_one, {'_id': 1}):
+   ...     server.got().ok()
+   True
+
 Simulate a command error:
 
    >>> future = go(collection.insert_one, {'_id': 1})
