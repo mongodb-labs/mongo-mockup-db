@@ -139,6 +139,67 @@ def go(fn, *args, **kwargs):
     return get_result
 
 
+@contextlib.contextmanager
+def going(fn, *args, **kwargs):
+    future = go(fn, *args, **kwargs)
+    try:
+        yield
+    except:
+        # We are raising an exception, just try to clean up the future.
+        try:
+            future()
+        except:
+            pass
+        raise
+    finally:
+        # Raise exception or discard result.
+        future()
+
+
+class Future(object):
+    def __init__(self):
+        self._result = None
+        self._event = threading.Event()
+
+    def result(self, timeout=None):
+        self._event.wait(timeout)
+        # wait() always returns None in Python 2.6.
+        if not self._event.is_set():
+            raise AssertionError('timed out waiting for Future')
+        return self._result
+
+    def set_result(self, result):
+        if self._event.is_set():
+            raise RuntimeError("Future is already resolved")
+        self._result = result
+        self._event.set()
+
+
+def wait_until(predicate, success_description, timeout=10):
+    """Wait up to 10 seconds (by default) for predicate to be true.
+
+    E.g.:
+
+        wait_until(lambda: client.primary == ('a', 1),
+                   'connect to the primary')
+
+    If the lambda-expression isn't true after 10 seconds, we raise
+    AssertionError("Didn't ever connect to the primary").
+
+    Returns the predicate's first true value.
+    """
+    start = time.time()
+    while True:
+        retval = predicate()
+        if retval:
+            return retval
+
+        if time.time() - start > timeout:
+            raise AssertionError("Didn't ever %s" % success_description)
+
+        time.sleep(0.1)
+
+
 OP_REPLY = 1
 OP_UPDATE = 2001
 OP_INSERT = 2002
