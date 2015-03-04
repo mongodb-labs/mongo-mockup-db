@@ -860,6 +860,11 @@ class _AutoResponder(object):
                 # ourselves in __init__.
                 request.replies(*self._args, **self._kwargs)
                 return True
+            
+    def cancel(self):
+        """Stop autoresponding."""
+        self._server.cancel_responder(self)
+
     def __repr__(self):
         return '_AutoResponder(%r, %r, %r)' % (
             self._matcher, self._args, self._kwargs)
@@ -1043,19 +1048,19 @@ class MockupDB(object):
         >>>
         >>> from pymongo import MongoClient
         >>> client = MongoClient(s.uri, socketTimeoutMS=100)
-        >>> s.autoresponds('ismaster')
+        >>> responder = s.autoresponds('ismaster')
         >>> client.admin.command('ismaster') == {'ok': 1}
         True
 
         The remaining arguments are a `reply spec`_:
 
-        >>> s.autoresponds('bar', ok=0, errmsg='err')
+        >>> responder = s.autoresponds('bar', ok=0, errmsg='err')
         >>> client.db.command('bar')
         Traceback (most recent call last):
         ...
         OperationFailure: command SON([('bar', 1)]) on namespace db.$cmd failed: err
-        >>> s.autoresponds(OpQuery(namespace='db.collection'),
-        ...                [{'_id': 1}, {'_id': 2}])
+        >>> responder = s.autoresponds(OpQuery(namespace='db.collection'),
+        ...                            [{'_id': 1}, {'_id': 2}])
         >>> list(client.db.collection.find()) == [{'_id': 1}, {'_id': 2}]
         True
 
@@ -1063,21 +1068,25 @@ class MockupDB(object):
         and replied to. Future matching requests skip the queue.
 
         >>> future = go(client.db.command, 'baz')
-        >>> s.autoresponds('baz', {'key': 'value'})
+        >>> responder = s.autoresponds('baz', {'key': 'value'})
         >>> future() == {'ok': 1, 'key': 'value'}
         True
 
         Responders are applied in order, most recently added first, until one
         matches:
 
-        >>> s.autoresponds('baz')
+        >>> responder = s.autoresponds('baz')
         >>> client.db.command('baz') == {'ok': 1}
+        True
+        >>> responder.cancel()
+        >>> # The previous responder takes over again.
+        >>> client.db.command('baz') == {'ok': 1, 'key': 'value'}
         True
 
         You can pass a request handler in place of the reply spec. Return
         True if you handled the request:
 
-        >>> s.autoresponds('baz', lambda r: r.ok(a=2))
+        >>> responder = s.autoresponds('baz', lambda r: r.ok(a=2))
 
         The standard `Request.ok`, `~Request.replies`, `~Request.fail`,
         `~Request.hangup` and so on all return True to make them suitable
@@ -1096,7 +1105,7 @@ class MockupDB(object):
         >>> def logger(request):
         ...     if not request.matches('ismaster'):
         ...         print('logging: %r' % request)
-        >>> s.autoresponds(logger)
+        >>> responder = s.autoresponds(logger)
         >>> client.db.command('baz') == {'ok': 1, 'a': 2}
         logging: Command({"baz": 1}, namespace="db")
         True
@@ -1104,7 +1113,7 @@ class MockupDB(object):
         The synonym `subscribe` better expresses your intent if your handler
         never returns True:
 
-        >>> s.subscribe(logger)
+        >>> subscriber = s.subscribe(logger)
 
         .. doctest:
             :hide:
@@ -1112,18 +1121,25 @@ class MockupDB(object):
             >>> client.close()
             >>> s.stop()
         """
-        responder = _AutoResponder(matcher, *args, **kwargs)
+        responder = _AutoResponder(self, matcher, *args, **kwargs)
         self._autoresponders.append(responder)
         try:
             request = self._request_q.peek(block=False)
         except Empty:
-            return
+            pass
+        else:
+            if responder.handle(request):
+                self._request_q.get_nowait()  # Pop it.
 
-        if responder.handle(request):
-            self._request_q.get_nowait()  # Pop it.
+        return responder
 
     subscribe = autoresponds
     """Synonym for `.autoresponds`."""
+    
+    @_synchronized
+    def cancel_responder(self, responder):
+        """Cancel a responder that was registered with `autoresponds`."""
+        self._autoresponders.remove(responder)
 
     @property
     def address(self):
