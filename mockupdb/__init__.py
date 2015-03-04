@@ -275,10 +275,11 @@ class Request(object):
         self._client = kwargs.pop('client', None)
         self._request_id = kwargs.pop('request_id', None)
         self._server = kwargs.pop('server', None)
+        self._verbose = self._server and self._server.verbose
         self._server_port = kwargs.pop('server_port', None)
         self._docs = make_docs(*args, **kwargs)
         if not all(isinstance(doc, collections.Mapping) for doc in self._docs):
-            raise TypeError('each doc must be a dict')
+            raise_args_err()
 
     @property
     def doc(self):
@@ -354,12 +355,16 @@ class Request(object):
 
     def hangup(self):
         """Close the connection."""
+        if self._verbose:
+            print('\t%d\thangup' % self.client_port)
         self._client.close()
+    hangs_up = hangup
+    """Synonym for `.hangup`."""
 
     def _replies(self, *args, **kwargs):
         """Overridable method."""
         reply_msg = make_reply(*args, **kwargs)
-        if self._server and self._server.verbose:
+        if self._verbose:
             print('\t%d\t<-- %r' % (self.client_port, reply_msg))
         reply_bytes = reply_msg.reply_bytes(self)
         self._client.sendall(reply_bytes)
@@ -423,7 +428,7 @@ class OpQuery(Request):
     def __init__(self, *args, **kwargs):
         fields = kwargs.pop('fields', None)
         if fields is not None and not isinstance(fields, collections.Mapping):
-            raise TypeError('fields must be a dict')
+            raise_args_err()
         self._fields = fields
         self._num_to_skip = kwargs.pop('num_to_skip', None)
         self._num_to_return = kwargs.pop('num_to_return', None)
@@ -431,8 +436,7 @@ class OpQuery(Request):
         if not self._docs:
             self._docs = [{}]  # Default query filter.
         elif len(self._docs) > 1:
-            raise ValueError('OpQuery too many documents: %s'
-                             % self._docs)
+            raise_args_err('OpQuery too many documents', ValueError)
 
     @property
     def num_to_skip(self):
@@ -480,7 +484,7 @@ class Command(OpQuery):
         keyword arguments.
         """
         kwargs.setdefault('err', None)
-        self.replies(**kwargs)
+        return self.replies(**kwargs)
 
 
 class OpGetMore(Request):
@@ -809,14 +813,11 @@ def _synchronized(meth):
 
 
 class _AutoResponder(object):
-    def __init__(self, matcher, *args, **kwargs):
-        # Error we might throw.
-        # TODO: use inspect.formatargvalues everywhere.
-        type_err = TypeError('Bad arguments: autoresponds(%r, *%r, **%r)'
-                             % (matcher, args, kwargs))
+    def __init__(self, server, matcher, *args, **kwargs):
+        self._server = server
         if callable(matcher):
             if args or kwargs:
-                raise type_err
+                raise_args_err()
             self._matcher = Matcher()  # Match anything.
             self._handler = matcher
             self._args = ()
@@ -826,7 +827,7 @@ class _AutoResponder(object):
             if args and callable(args[0]):
                 self._handler = args[0]
                 if args[1:] or kwargs:
-                    raise type_err
+                    raise_args_err()
                 self._args = ()
                 self._kwargs = {}
             else:
@@ -1009,6 +1010,9 @@ class MockupDB(object):
     def hangup(self):
         """Call `~Request.hangup` on the currently enqueued request."""
         self.pop().hangup()
+
+    hangs_up = hangup
+    """Synonym for `.hangup`."""
 
     @_synchronized
     def autoresponds(self, matcher, *args, **kwargs):
@@ -1320,8 +1324,7 @@ def make_docs(*args, **kwargs):
     `MockupDB.receives`, `Request.replies`, and so on. See examples in
     tutorial.
     """
-    # Error we might raise.
-    value_err = ValueError("Can't interpret args %r, %r" % (args, kwargs))
+    err_msg = "Can't interpret args: "
     if not args and not kwargs:
         return []
 
@@ -1332,7 +1335,7 @@ def make_docs(*args, **kwargs):
     if isinstance(args[0], (int, float, bool)):
         # server.receives().ok(0, err='uh oh').
         if args[1:]:
-            raise value_err
+            raise_args_err(err_msg, ValueError)
         doc = {'ok': args[0]}
         doc.update(kwargs)
         return [doc]
@@ -1341,25 +1344,25 @@ def make_docs(*args, **kwargs):
         # Send a batch: OpReply([{'a': 1}, {'a': 2}]).
         if not all(isinstance(doc, (OpReply, collections.Mapping))
                    for doc in args[0]):
-            raise TypeError('each doc must be a dict')
+            raise_args_err('each doc must be a dict:')
         if kwargs:
-            raise value_err
+            raise_args_err(err_msg, ValueError)
         return list(args[0])
 
     if isinstance(args[0], (string_type, text_type)):
         # OpReply('ismaster', me='a.com').
         if args[1:]:
-            raise value_err
+            raise_args_err(err_msg, ValueError)
         doc = {args[0]: 1}
         doc.update(kwargs)
         return [doc]
 
     if kwargs:
-        raise value_err
+        raise_args_err(err_msg, ValueError)
 
     # Send a batch as varargs: OpReply({'a': 1}, {'a': 2}).
     if not all(isinstance(doc, (OpReply, collections.Mapping)) for doc in args):
-        raise TypeError('each doc must be a dict')
+        raise_args_err('each doc must be a dict')
 
     return args
 
@@ -1378,7 +1381,7 @@ def make_matcher(*args, **kwargs):
     """
     if args and isinstance(args[0], Matcher):
         if args[1:] or kwargs:
-            raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
+            raise_args_err("can't interpret args")
         return args[0]
 
     return Matcher(*args, **kwargs)
@@ -1391,7 +1394,7 @@ def make_prototype_request(*args, **kwargs):
         return request_cls(*arg_list, **kwargs)
     if args and isinstance(args[0], Request):
         if args[1:] or kwargs:
-            raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
+            raise_args_err("can't interpret args")
         return args[0]
 
     # Match any opcode.
@@ -1415,7 +1418,7 @@ def make_reply(*args, **kwargs):
     # Error we might raise.
     if args and isinstance(args[0], OpReply):
         if args[1:] or kwargs:
-            raise ValueError("Can't interpret args %r, %r" % (args, kwargs))
+            raise_args_err("can't interpret args")
         return args[0]
 
     return OpReply(*args, **kwargs)
@@ -1491,6 +1494,31 @@ def seq_match(seq0, seq1):
         seq1_idx += 1
 
     return True
+
+
+def format_call(frame):
+    fn_name = inspect.getframeinfo(frame)[2]
+    arg_info = inspect.getargvalues(frame)
+    args = [repr(arg_info.locals[arg]) for arg in arg_info.args]
+    varargs = [repr(x) for x in arg_info.locals[arg_info.varargs]]
+    kwargs = [', '.join("%s=%r" % (key, value) for key, value in
+                        arg_info.locals[arg_info.keywords].items())]
+    return '%s(%s)' % (fn_name, ', '.join(args + varargs + kwargs))
+
+
+def raise_args_err(message='bad arguments', error_class=TypeError):
+    """Throw an error with standard message, displaying function call.
+
+    >>> def f(a, *args, **kwargs):
+    ...     raise_args_err()
+    ...
+    >>> f(1, 2, x='y')
+    Traceback (most recent call last):
+    ...
+    TypeError: bad arguments: f(1, 2, x='y')
+    """
+    frame = inspect.currentframe().f_back
+    raise error_class(message + ': ' + format_call(frame))
 
 
 def interactive_server(port=27017, verbose=True):
