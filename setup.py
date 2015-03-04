@@ -24,7 +24,7 @@ if sys.version_info[:2] == (2, 6):
     test_requirements.append('unittest2')
 
 setup(
-    name='MockupDB',
+    name='mockupdb',
     version='0.1.0',
     description=("Mock server to test MongoDB clients and creating MongoDB Wire"
                  " Protocol servers."),
