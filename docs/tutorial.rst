@@ -110,6 +110,13 @@ which is an `~pymongo.results.InsertOneResult`:
    >>> write_result.inserted_id
    2
 
+If you don't need the future's return value, you can express this more tersely
+with `going`:
+
+   >>> with going(collection.insert_one, {'_id': 3}):
+   ...     server.receives().replies_to_gle()
+   True
+
 Reply To Write Commands
 -----------------------
 
@@ -136,12 +143,6 @@ To unblock the background thread, send the default reply of ``{ok: 1}}``:
    >>> request.reply()
    True
    >>> assert 1 == future().inserted_id
-
-If you don't need the future's return value, you can express this more tersely:
-
-   >>> with going(collection.insert_one, {'_id': 1}):
-   ...     server.pop().ok()
-   True
 
 Simulate a command error:
 

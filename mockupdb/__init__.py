@@ -111,7 +111,26 @@ __all__ = [
 
 
 def go(fn, *args, **kwargs):
-    """TODO: doc."""
+    """Launch an operation on a thread and get a handle to its future result.
+
+    >>> from time import sleep
+    >>> def print_sleep_print(duration):
+    ...     sleep(duration)
+    ...     print('hello from background thread')
+    ...     sleep(duration)
+    ...     print('goodbye from background thread')
+    ...     return 'return value'
+    ...
+    >>> future = go(print_sleep_print, 0.1)
+    >>> sleep(0.15)
+    hello from background thread
+    >>> print('main thread')
+    main thread
+    >>> result = future()
+    goodbye from background thread
+    >>> result
+    'return value'
+    """
     if not callable(fn):
         raise TypeError('go() requires a function, not %r' % fn)
     result = [None]
@@ -142,9 +161,21 @@ def go(fn, *args, **kwargs):
 
 @contextlib.contextmanager
 def going(fn, *args, **kwargs):
+    """Launch a thread and wait for its result before exiting the code block.
+
+    >>> with going(lambda: 'return value') as future:
+    ...    pass
+    >>> future()  # Won't block, the future is ready by now.
+    'return value'
+
+    Or discard the result:
+
+    >>> with going(lambda: "don't care"):
+    ...    pass
+    """
     future = go(fn, *args, **kwargs)
     try:
-        yield
+        yield future
     except:
         # We are raising an exception, just try to clean up the future.
         exc_info = sys.exc_info()
