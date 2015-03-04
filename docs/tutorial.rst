@@ -352,7 +352,7 @@ PyMongo should call "ismaster" every 10 milliseconds, more or less:
 
    >>> time.sleep(1)
    >>> ismasters_count = server.requests_count - starting_count
-   >>> assert 50 < ismasters_count <= 100
+   >>> assert 25 < ismasters_count <= 100
 
 Back to normal:
 
