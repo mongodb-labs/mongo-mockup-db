@@ -353,35 +353,42 @@ Test Server Discovery And Monitoring
 
 To test PyMongo's server monitor, make the server a secondary:
 
-   >>> import time
-   >>> ismaster_reply = OpReply({
+   >>> hosts = [server.address_string]
+   >>> secondary_reply = OpReply({
    ...     'ismaster': False,
    ...     'secondary': True,
    ...     'setName': 'rs',
-   ...     'maxWireVersion': 3,
-   ...     'hosts': ['%s:%d' % server.address]})
-   >>> responder = server.autoresponds('ismaster', ismaster_reply)
+   ...     'hosts': hosts})
+   >>> responder = server.autoresponds('ismaster', secondary_reply)
 
-Connect to the replica set and try to insert:
+Connect to the replica set:
 
    >>> client = MongoClient(server.uri, replicaSet='rs')
-   >>> collection = client.db.coll
-   >>> starting_count = server.requests_count
-   >>> future = go(collection.insert_one, {'_id': 'my id'})
-
-PyMongo should call "ismaster" every 10 milliseconds, more or less:
-
-   >>> time.sleep(1)
-   >>> ismasters_count = server.requests_count - starting_count
-   >>> assert 25 < ismasters_count <= 100
-
-Back to normal:
-
-   >>> ismaster_reply.update(ismaster=True, secondary=False)
-   >>> server.gets(insert='coll').ok()
+   >>> from mockupdb import wait_until
+   >>> wait_until(lambda: server.address in client.secondaries,
+   ...            'discover secondary')
    True
-   >>> future().inserted_id
-   'my id'
+
+Add a primary to the host list:
+
+   >>> primary = MockupDB()
+   >>> port = primary.run()
+   >>> hosts.append(primary.address_string)
+   >>> primary_reply = OpReply({
+   ...     'ismaster': True,
+   ...     'secondary': False,
+   ...     'setName': 'rs',
+   ...     'hosts': hosts})
+   >>> responder = primary.autoresponds('ismaster', primary_reply)
+
+Client discovers it quickly if there's a pending operation:
+
+   >>> with going(client.db.command, 'buildinfo'):
+   ...     wait_until(lambda: primary.address == client.primary,
+   ...                'discovery primary')
+   ...     primary.pop('buildinfo').ok()
+   True
+   True
 
 .. _PyMongo: https://pypi.python.org/pypi/pymongo/
 
