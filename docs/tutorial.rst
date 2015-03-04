@@ -114,7 +114,9 @@ If you don't need the future's return value, you can express this more tersely
 with `going`:
 
    >>> with going(collection.insert_one, {'_id': 3}):
+   ...     server.receives()
    ...     server.receives().replies_to_gle()
+   OpInsert({"_id": 3}, namespace="db.coll")
    True
 
 Reply To Write Commands
