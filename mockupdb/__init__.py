@@ -846,6 +846,9 @@ class _AutoResponder(object):
                 # ourselves in __init__.
                 request.replies(*self._args, **self._kwargs)
                 return True
+    def __repr__(self):
+        return '_AutoResponder(%r, %r, %r)' % (
+            self._matcher, self._args, self._kwargs)
 
 
 class MockupDB(object):
