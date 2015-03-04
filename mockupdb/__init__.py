@@ -1606,12 +1606,12 @@ def interactive_server(port=27017, verbose=True):
                       verbose=verbose,
                       request_timeout=int(1e6))
     server.autoresponds({})
-    server.autoresponds(OpQuery, {'a': 1}, {'a': 2})
-    server.autoresponds('ismaster')
+    server.autoresponds('ismaster', ismaster=True, setName='MockupDB')
     server.autoresponds('isMaster', ismaster=True, setName='MockupDB')
     server.autoresponds('whatsmyuri', you='localhost:12345')
     server.autoresponds({'getLog': 'startupWarnings'},
                         log=['hello from MockupDB!'])
+    server.autoresponds('buildinfo', version='MockupDB ' + __version__)
     server.autoresponds('replSetGetStatus', ok=0)
     return server
 
