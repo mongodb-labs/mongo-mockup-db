@@ -43,11 +43,15 @@ class TestGoing(unittest.TestCase):
 
         with capture_stderr() as stderr:
             with self.assertRaises(ZeroDivisionError):
-                with going(thrower):
+                with going(thrower) as future:
                     1 / 0
 
         self.assertIn('error in going(', stderr.getvalue())
         self.assertIn('AssertionError: thrown', stderr.getvalue())
+
+        # Future keeps raising.
+        self.assertRaises(AssertionError, future)
+        self.assertRaises(AssertionError, future)
 
 
 class TestIsMasterFrequency(unittest.TestCase):
