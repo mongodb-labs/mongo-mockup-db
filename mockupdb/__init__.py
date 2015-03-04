@@ -519,6 +519,15 @@ class OpQuery(Request):
 class Command(OpQuery):
     """A command the client executes on the server."""
 
+    @property
+    def command_name(self):
+        """The command name.
+
+        >>> Command({'count': 'collection'}).command_name
+        'count'
+        """
+        return list(self.doc.keys())[0]
+
     def _replies(self, *args, **kwargs):
         reply = make_reply(*args, **kwargs)
         if not reply.docs:
