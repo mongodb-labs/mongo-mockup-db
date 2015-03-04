@@ -3,20 +3,51 @@
 
 """Test MockupDB."""
 
+import contextlib
 import time
+import sys
 
-from pymongo.errors import ConnectionFailure
-from pymongo.topology_description import TOPOLOGY_TYPE
+if sys.version_info[0] < 3:
+    from io import BytesIO as StringIO
+else:
+    from io import StringIO
 
 try:
     from queue import Queue
 except ImportError:
     from Queue import Queue
 
+from pymongo.errors import ConnectionFailure
+from pymongo.topology_description import TOPOLOGY_TYPE
 from pymongo import MongoClient, ReadPreference
 
 from mockupdb import MockupDB, wait_until, OpReply, going, Future, go
 from tests import unittest  # unittest2 on Python 2.6.
+
+
+@contextlib.contextmanager
+def capture_stderr():
+    sio = StringIO()
+    stderr, sys.stderr = sys.stderr, sio
+    try:
+        yield sio
+    finally:
+        sys.stderr = stderr
+        sio.seek(0)
+
+
+class TestGoing(unittest.TestCase):
+    def test_nested_errors(self):
+        def thrower():
+            raise AssertionError("thrown")
+
+        with capture_stderr() as stderr:
+            with self.assertRaises(ZeroDivisionError):
+                with going(thrower):
+                    1 / 0
+
+        self.assertIn('error in going(', stderr.getvalue())
+        self.assertIn('AssertionError: thrown', stderr.getvalue())
 
 
 class TestIsMasterFrequency(unittest.TestCase):

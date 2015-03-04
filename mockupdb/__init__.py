@@ -48,6 +48,7 @@ import random
 import select
 import socket
 import struct
+import traceback
 import threading
 import time
 import weakref
@@ -146,12 +147,17 @@ def going(fn, *args, **kwargs):
         yield
     except:
         # We are raising an exception, just try to clean up the future.
+        exc_info = sys.exc_info()
         try:
-            future()
+            future(timeout=1)
         except:
-            pass
-        raise
-    finally:
+            log_message = ('\nerror in %s:\n'
+                           % format_call(inspect.currentframe()))
+            sys.stderr.write(log_message)
+            traceback.print_exc()
+            # sys.stderr.write('exc in %s' % format_call(inspect.currentframe()))
+        reraise(*exc_info)
+    else:
         # Raise exception or discard result.
         future()
 
