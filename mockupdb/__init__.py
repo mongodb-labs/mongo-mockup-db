@@ -521,12 +521,13 @@ class Command(OpQuery):
 
     @property
     def command_name(self):
-        """The command name.
+        """The command name or None.
 
         >>> Command({'count': 'collection'}).command_name
         'count'
         """
-        return list(self.doc.keys())[0]
+        if self.docs and self.docs[0]:
+            return list(self.docs[0])[0]
 
     def _replies(self, *args, **kwargs):
         reply = make_reply(*args, **kwargs)
