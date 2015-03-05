@@ -1606,7 +1606,7 @@ def raise_args_err(message='bad arguments', error_class=TypeError):
     raise error_class(message + ': ' + format_call(frame))
 
 
-def interactive_server(port=27017, verbose=True, all_ok=True):
+def interactive_server(port=27017, verbose=True, all_ok=True, name='MockupDB'):
     """A `MockupDB` that the mongo shell can connect to.
 
     Call `~.MockupDB.run` on the returned server, and clean it up with
@@ -1620,11 +1620,11 @@ def interactive_server(port=27017, verbose=True, all_ok=True):
                       request_timeout=int(1e6))
     if all_ok:
         server.autoresponds({})
-    server.autoresponds('ismaster', ismaster=True, setName='MockupDB')
-    server.autoresponds('isMaster', ismaster=True, setName='MockupDB')
+    server.autoresponds('ismaster', ismaster=True, setName=name)
+    server.autoresponds('isMaster', ismaster=True, setName=name)
     server.autoresponds('whatsmyuri', you='localhost:12345')
     server.autoresponds({'getLog': 'startupWarnings'},
-                        log=['hello from MockupDB!'])
+                        log=['hello from %s!' % name])
     server.autoresponds('buildinfo', version='MockupDB ' + __version__)
     server.autoresponds('replSetGetStatus', ok=0)
     return server
