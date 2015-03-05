@@ -12,7 +12,7 @@ MockupDB
 Mock server for testing MongoDB clients and creating MongoDB Wire Protocol
 servers.
 
-* Documentation: https://mongo-mockup-db.readthedocs.org.
+* Documentation: http://mockupdb.readthedocs.org/en/latest/tutorial.html
 
 Features
 --------
