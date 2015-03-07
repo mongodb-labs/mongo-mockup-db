@@ -180,7 +180,7 @@ def going(fn, *args, **kwargs):
         # We are raising an exception, just try to clean up the future.
         exc_info = sys.exc_info()
         try:
-            future(timeout=1)
+            future(timeout=10)
         except:
             log_message = ('\nerror in %s:\n'
                            % format_call(inspect.currentframe()))
@@ -190,7 +190,7 @@ def going(fn, *args, **kwargs):
         reraise(*exc_info)
     else:
         # Raise exception or discard result.
-        future()
+        future(timeout=10)
 
 
 class Future(object):
