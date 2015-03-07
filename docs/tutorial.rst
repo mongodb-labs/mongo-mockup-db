@@ -20,7 +20,6 @@ the shell, but that is not tremendously interesting. Better to use it in tests.
 We begin by running a :class:`.MockupDB` and connecting to it with PyMongo's
 `~pymongo.mongo_client.MongoClient`:
 
-   >>> import sys
    >>> from mockupdb import *
    >>> server = MockupDB()
    >>> port = server.run()  # Returns the TCP port number it listens on.
