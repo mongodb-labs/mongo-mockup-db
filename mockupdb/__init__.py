@@ -1046,7 +1046,7 @@ class MockupDB(object):
         >>> future = go(client.db.command, 'foo')
         >>> s.got('foo')
         True
-        >>> s.got(Command('foo'))
+        >>> s.got(Command('foo', namespace='db'))
         True
         >>> s.got(Command('foo', key='value'))
         False
