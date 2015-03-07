@@ -305,6 +305,7 @@ class _PeekableQueue(Queue):
 class Request(object):
     """Base class for `Command`, `OpInsert`, and so on."""
     opcode = None
+    is_command = None
 
     def __init__(self, *args, **kwargs):
         self._flags = kwargs.pop('flags', None)
@@ -446,6 +447,7 @@ class Request(object):
 class OpQuery(Request):
     """A query (besides a command) the client executes on the server."""
     opcode = OP_QUERY
+    is_command = False
 
     @classmethod
     def unpack(cls, msg, client, server, request_id):
@@ -518,6 +520,7 @@ class OpQuery(Request):
 
 class Command(OpQuery):
     """A command the client executes on the server."""
+    is_command = True
 
     @property
     def command_name(self):
@@ -614,6 +617,8 @@ class OpKillCursors(Request):
 
 
 class _LegacyWrite(Request):
+    is_command = False
+
     @classmethod
     def unpack(cls, msg, client, server, request_id):
         """Parse message and return an `OpInsert`.
@@ -780,12 +785,19 @@ class Matcher(object):
         >>> m.matches(OpQuery, {'_id': 1})
         True
 
-        Commands are queries, too:
+        Commands are queries on some database's "database.$cmd" namespace.
+        They are specially prohibited from matching regular queries:
 
-        >>> m.matches(Command)
+        >>> Matcher(OpQuery).matches(Command)
+        False
+        >>> Matcher(Command).matches(Command)
         True
+        >>> Matcher(OpQuery).matches(OpQuery)
+        True
+        >>> Matcher(Command).matches(OpQuery)
+        False
 
-        It matches properties specific to certain opcodes:
+        You can match properties specific to certain opcodes:
 
         >>> m = Matcher(OpGetMore, num_to_return=3)
         >>> m.matches(OpGetMore())
@@ -827,6 +839,8 @@ class Matcher(object):
         # TODO: just take a Request, not args and kwargs?
         request = make_prototype_request(*args, **kwargs)
         if self._prototype.opcode not in (None, request.opcode):
+            return False
+        if self._prototype.is_command not in (None, request.is_command):
             return False
         for name in dir(self._prototype):
             if name.startswith('_') or name in ('doc', 'docs'):
