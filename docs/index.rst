@@ -6,6 +6,8 @@
 MockupDB
 ========
 
+.. image:: _static/mask.jpg
+
 Mock server for testing MongoDB clients and creating `MongoDB Wire Protocol`_
 servers.
 
@@ -30,5 +32,7 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+Image Credit: `gnuckx <https://www.flickr.com/photos/34409164@N06/4708707234/>`_
 
 .. _MongoDB Wire Protocol: http://docs.mongodb.org/meta-driver/latest/legacy/mongodb-wire-protocol/
