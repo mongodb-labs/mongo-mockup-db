@@ -1,1 +1,1 @@
-git+git://github.com/mongodb/mongo-python-driver@3.0-dev
+https://github.com/mongodb/mongo-python-driver/archive/3.0b0.tar.gz

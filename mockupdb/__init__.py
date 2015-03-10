@@ -74,7 +74,7 @@ import bson                 # From PyMongo 3.0.
 import bson.codec_options   # From PyMongo 3.0.
 import bson.json_util       # From PyMongo 3.0.
 
-CODEC_OPTIONS = bson.codec_options.CodecOptions(as_class=OrderedDict)
+CODEC_OPTIONS = bson.codec_options.CodecOptions(document_class=OrderedDict)
 
 PY3 = sys.version_info[0] == 3
 if PY3:
