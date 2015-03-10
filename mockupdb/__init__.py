@@ -1275,12 +1275,13 @@ class MockupDB(object):
         while not self._stopped:
             try:
                 # Wait a short time to accept.
-                if select.select([self._listening_sock.fileno()], [], [], 0.05):
+                if select.select([self._listening_sock.fileno()], [], [], 1):
                     client, client_addr = self._listening_sock.accept()
                     if self._verbose:
                         print('connection from %s:%s' % client_addr)
                     server_thread = threading.Thread(
-                        target=functools.partial(self._server_loop, client))
+                        target=functools.partial(
+                            self._server_loop, client, client_addr))
 
                     # Store weakrefs to the thread and socket, so we can
                     # dispose them in stop().
@@ -1300,7 +1301,7 @@ class MockupDB(object):
                     raise
 
     @_synchronized
-    def _server_loop(self, client):
+    def _server_loop(self, client, client_addr):
         """Read requests from one client socket, 'client'."""
         while not self._stopped:
             try:
@@ -1320,13 +1321,19 @@ class MockupDB(object):
                 else:
                     self._request_q.put(request)
             except socket.error as error:
-                if error.errno == errno.EAGAIN:
-                    continue
-                elif error.errno in (errno.ECONNRESET, errno.EBADF):
+                if error.errno in (errno.ECONNRESET, errno.EBADF):
                     # We hung up, or the client did.
                     break
                 raise
+            except select.error as error:
+                if error.args[0] == errno.EBADF:
+                    # Closed.
+                    break
+                else:
+                    raise
 
+        if self._verbose:
+            print('disconnected: %s:%d' % client_addr)
         client.close()
 
     @contextlib.contextmanager
@@ -1404,12 +1411,18 @@ def mock_server_receive(sock, length):
     """Receive `length` bytes from a socket object."""
     msg = b''
     while length:
-        chunk = sock.recv(length)
-        if chunk == b'':
-            raise socket.error(errno.ECONNRESET, 'closed')
+        if select.select([sock.fileno()], [], [], 1):
+            try:
+                chunk = sock.recv(length)
+                if chunk == b'':
+                    raise socket.error(errno.ECONNRESET, 'closed')
 
-        length -= len(chunk)
-        msg += chunk
+                length -= len(chunk)
+                msg += chunk
+            except socket.error as error:
+                if error.errno == errno.EAGAIN:
+                    continue
+                raise
 
     return msg
 
