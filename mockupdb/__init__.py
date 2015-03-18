@@ -303,7 +303,27 @@ class _PeekableQueue(Queue):
 
 
 class Request(object):
-    """Base class for `Command`, `OpInsert`, and so on."""
+    """Base class for `Command`, `OpInsert`, and so on.
+
+    Some useful asserts you can do in tests:
+
+    >>> {'_id': 0} in OpInsert({'_id': 0})
+    True
+    >>> {'_id': 1} in OpInsert({'_id': 0})
+    False
+    >>> {'_id': 1} in OpInsert([{'_id': 0}, {'_id': 1}])
+    True
+    >>> {'_id': 1} == OpInsert([{'_id': 0}, {'_id': 1}])[1]
+    True
+    >>> 'field' in Command(field=1)
+    True
+    >>> 'field' in Command()
+    False
+    >>> 'field' in Command('ismaster')
+    False
+    >>> Command(ismaster=False)['ismaster'] is False
+    True
+    """
     opcode = None
     is_command = None
 
@@ -422,6 +442,16 @@ class Request(object):
             print('\t%d\t<-- %r' % (self.client_port, reply_msg))
         reply_bytes = reply_msg.reply_bytes(self)
         self._client.sendall(reply_bytes)
+
+    def __contains__(self, item):
+        if item in self.docs:
+            return True
+        if len(self.docs) == 1 and isinstance(item, (string_type, text_type)):
+            return item in self.doc
+        return False
+
+    def __getitem__(self, item):
+        return self.doc[item] if len(self.docs) == 1 else self.docs[item]
 
     def __str__(self):
         return docs_repr(*self.docs)

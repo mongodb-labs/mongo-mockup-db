@@ -259,7 +259,7 @@ PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
    >>> client = MongoClient(server.uri)
    >>> collection = client.db.coll
    >>> future = go(collection.insert_one, {'_id': 5})
-   >>> assert 'writeConcern' not in server.receives().doc
+   >>> assert 'writeConcern' not in server.receives()
    >>> client.close()
 
 Test Cursor Behavior
