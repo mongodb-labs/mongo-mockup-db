@@ -459,20 +459,19 @@ class Request(object):
 
     def __repr__(self):
         name = self.__class__.__name__
-        if not self.docs:
-            rep = '%s(' % name
-        else:
-            rep = '%s(%s' % (name, self)
+        parts = []
+        if self.docs:
+            parts.append(docs_repr(*self.docs))
 
         if self._flags:
-            rep += ', flags=%s' % (
+            parts.append('flags=%s' % (
                 '|'.join(name for name, value in QUERY_FLAGS.items()
-                         if self._flags & value))
+                         if self._flags & value)))
 
         if self._namespace:
-            rep += ', namespace="%s"' % self._namespace
+            parts.append('namespace="%s"' % self._namespace)
 
-        return rep + ')'
+        return '%s(%s)' % (name, ', '.join(str(part) for part in parts))
 
 
 class OpQuery(Request):
@@ -1203,7 +1202,7 @@ class MockupDB(object):
         ...         print('logging: %r' % request)
         >>> responder = s.autoresponds(logger)
         >>> client.db.command('baz') == {'ok': 1, 'a': 2}
-        logging: Command({"baz": 1}, namespace="db")
+        logging: Command({"baz": 1}, flags=SlaveOkay, namespace="db")
         True
 
         The synonym `subscribe` better expresses your intent if your handler

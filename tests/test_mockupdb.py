@@ -17,6 +17,7 @@ try:
 except ImportError:
     from Queue import Queue
 
+from bson import SON
 from bson.codec_options import CodecOptions
 from pymongo.errors import ConnectionFailure
 from pymongo.topology_description import TOPOLOGY_TYPE
@@ -27,8 +28,10 @@ from mockupdb import (Command,
                       go,
                       going,
                       MockupDB,
+                      OpInsert,
                       OpReply,
                       OpQuery,
+                      Request,
                       wait_until)
 from tests import unittest  # unittest2 on Python 2.6.
 
@@ -90,6 +93,31 @@ class TestRequest(unittest.TestCase):
         msg_bytes, request_id = self._pack_request('db.$cmd', True)
         request = OpQuery.unpack(msg_bytes, None, None, request_id)
         self.assertEqual(4, request.flags)
+        
+    def test_repr(self):
+        self.assertEqual('Request()', repr(Request()))
+        self.assertEqual('Request({})', repr(Request({})))
+        self.assertEqual('Request({})', repr(Request([{}])))
+        self.assertEqual('Request(flags=SlaveOkay)', repr(Request(flags=4)))
+        self.assertEqual('Request({}, flags=TailableCursor|AwaitData)',
+                         repr(Request({}, flags=34)))
+
+        self.assertEqual('OpQuery({})', repr(OpQuery()))
+        self.assertEqual('OpQuery({})', repr(OpQuery({})))
+        self.assertEqual('OpQuery({})', repr(OpQuery([{}])))
+        self.assertEqual('OpQuery({}, flags=SlaveOkay)', repr(OpQuery(flags=4)))
+        self.assertEqual('OpQuery({}, flags=SlaveOkay)',
+                         repr(OpQuery({}, flags=4)))
+
+        self.assertEqual('Command({})', repr(Command()))
+        self.assertEqual('Command({"foo": 1})', repr(Command('foo')))
+        son = SON([('b', 1), ('a', 1), ('c', 1)])
+        self.assertEqual('Command({"b": 1, "a": 1, "c": 1})',
+                         repr(Command(son)))
+        self.assertEqual('Command({}, flags=SlaveOkay)', repr(Command(flags=4)))
+
+        self.assertEqual('OpInsert({}, {})', repr(OpInsert([{}, {}])))
+        self.assertEqual('OpInsert({}, {})', repr(OpInsert({}, {})))
 
 
 class TestIsMasterFrequency(unittest.TestCase):
