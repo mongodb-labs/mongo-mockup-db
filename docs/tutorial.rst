@@ -40,10 +40,7 @@ We respond:
    True
 
 In fact this is the default response, so the next time the client calls
-"ismaster" you could just say:
-
-   >>> server.receives().replies()
-   True
+"ismaster" you could just say ``server.receives().replies()``.
 
 The `~MockupDB.receives` call blocks until it receives a request from the
 client. Responding to each "ismaster" call is tiresome, so tell the client
