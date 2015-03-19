@@ -498,8 +498,8 @@ class OpQuery(Request):
         if is_command:
             assert len(docs) == 1
             command_ns = namespace[:-len('.$cmd')]
-            return Command(docs, namespace=command_ns, client=client,
-                           request_id=request_id, server=server)
+            return Command(docs, namespace=command_ns, flags=flags,
+                           client=client, request_id=request_id, server=server)
         else:
             if len(docs) == 1:
                 fields = None

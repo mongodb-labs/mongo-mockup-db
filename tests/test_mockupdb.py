@@ -17,11 +17,19 @@ try:
 except ImportError:
     from Queue import Queue
 
+from bson.codec_options import CodecOptions
 from pymongo.errors import ConnectionFailure
 from pymongo.topology_description import TOPOLOGY_TYPE
-from pymongo import MongoClient, ReadPreference
+from pymongo import MongoClient, ReadPreference, message
 
-from mockupdb import MockupDB, wait_until, OpReply, going, Future, go
+from mockupdb import (Command,
+                      Future,
+                      go,
+                      going,
+                      MockupDB,
+                      OpReply,
+                      OpQuery,
+                      wait_until)
 from tests import unittest  # unittest2 on Python 2.6.
 
 
@@ -52,6 +60,36 @@ class TestGoing(unittest.TestCase):
         # Future keeps raising.
         self.assertRaises(AssertionError, future)
         self.assertRaises(AssertionError, future)
+
+
+class TestRequest(unittest.TestCase):
+    def _pack_request(self, ns, slave_ok):
+        flags = 4 if slave_ok else 0
+        request_id, msg_bytes, max_doc_size = message.query(
+            flags, ns, 0, 0, {}, None, CodecOptions())
+
+        # Skip 16-byte standard header.
+        return msg_bytes[16:], request_id
+
+    def test_flags(self):
+        msg_bytes, request_id = self._pack_request('db.collection', False)
+        request = OpQuery.unpack(msg_bytes, None, None, request_id)
+        self.assertIsInstance(request, OpQuery)
+        self.assertNotIsInstance(request, Command)
+        self.assertEqual(0, request.flags)
+
+        msg_bytes, request_id = self._pack_request('db.$cmd', False)
+        request = OpQuery.unpack(msg_bytes, None, None, request_id)
+        self.assertIsInstance(request, Command)
+        self.assertEqual(0, request.flags)
+
+        msg_bytes, request_id = self._pack_request('db.collection', True)
+        request = OpQuery.unpack(msg_bytes, None, None, request_id)
+        self.assertEqual(4, request.flags)
+
+        msg_bytes, request_id = self._pack_request('db.$cmd', True)
+        request = OpQuery.unpack(msg_bytes, None, None, request_id)
+        self.assertEqual(4, request.flags)
 
 
 class TestIsMasterFrequency(unittest.TestCase):
