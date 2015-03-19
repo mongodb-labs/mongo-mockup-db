@@ -1194,7 +1194,7 @@ class MockupDB(object):
         If the request is not handled, it is checked against the remaining
         responders, or enqueued if none match.
 
-        You can pass the handler is the only argument so it receives *all*
+        You can pass the handler as the only argument so it receives *all*
         requests. For example you could log them, then return None to allow
         other handlers to run:
 
