@@ -430,7 +430,7 @@ class Request(object):
         """
         if self._verbose:
             print('\t%d\thangup' % self.client_port)
-        self._client.close()
+        self._client.shutdown(socket.SHUT_RDWR)
         return True
 
     hangs_up = hangup
