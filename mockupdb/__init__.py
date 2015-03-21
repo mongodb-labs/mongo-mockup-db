@@ -132,7 +132,7 @@ def go(fn, *args, **kwargs):
     'return value'
     """
     if not callable(fn):
-        raise TypeError('go() requires a function, not %r' % fn)
+        raise TypeError('go() requires a function, not %r' % (fn, ))
     result = [None]
     error = []
 
