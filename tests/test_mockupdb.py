@@ -75,11 +75,17 @@ class TestRequest(unittest.TestCase):
         return msg_bytes[16:], request_id
 
     def test_flags(self):
+        request = Request()
+        self.assertIsNone(request.flags)
+        self.assertFalse(request.slave_ok)
+
         msg_bytes, request_id = self._pack_request('db.collection', False)
         request = OpQuery.unpack(msg_bytes, None, None, request_id)
         self.assertIsInstance(request, OpQuery)
         self.assertNotIsInstance(request, Command)
         self.assertEqual(0, request.flags)
+        self.assertFalse(request.slave_ok)
+        self.assertFalse(request.slave_okay)  # Synonymous.
 
         msg_bytes, request_id = self._pack_request('db.$cmd', False)
         request = OpQuery.unpack(msg_bytes, None, None, request_id)
@@ -89,6 +95,7 @@ class TestRequest(unittest.TestCase):
         msg_bytes, request_id = self._pack_request('db.collection', True)
         request = OpQuery.unpack(msg_bytes, None, None, request_id)
         self.assertEqual(4, request.flags)
+        self.assertTrue(request.slave_ok)
 
         msg_bytes, request_id = self._pack_request('db.$cmd', True)
         request = OpQuery.unpack(msg_bytes, None, None, request_id)

@@ -366,6 +366,15 @@ class Request(object):
         return self._flags
 
     @property
+    def slave_ok(self):
+        """True if the SlaveOkay wire protocol flag is set."""
+        return self._flags and bool(
+            self._flags & QUERY_FLAGS['SlaveOkay'])
+
+    slave_okay = slave_ok
+    """Synonym for `.slave_ok`."""
+
+    @property
     def request_id(self):
         """The request id or None."""
         return self._request_id
