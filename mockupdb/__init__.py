@@ -572,6 +572,8 @@ class Command(OpQuery):
 
         >>> Command({'count': 'collection'}).command_name
         'count'
+        >>> Command('aggregate', 'collection', cursor=absent).command_name
+        'aggregate'
         """
         if self.docs and self.docs[0]:
             return list(self.docs[0])[0]
@@ -1521,10 +1523,15 @@ def make_docs(*args, **kwargs):
         return list(args[0])
 
     if isinstance(args[0], (string_type, text_type)):
-        # OpReply('ismaster', me='a.com').
-        if args[1:]:
+        if args[2:]:
             raise_args_err(err_msg, ValueError)
-        doc = {args[0]: 1}
+
+        if len(args) == 2:
+            # Command('aggregate', 'collection', {'cursor': {'batchSize': 1}}).
+            doc = OrderedDict({args[0]: args[1]})
+        else:
+            # OpReply('ismaster', me='a.com').
+            doc = OrderedDict({args[0]: 1})
         doc.update(kwargs)
         return [doc]
 
