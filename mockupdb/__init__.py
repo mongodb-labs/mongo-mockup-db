@@ -384,6 +384,11 @@ class Request(object):
         """Client connection's TCP port."""
         return self._client.getpeername()[1]
 
+    @property
+    def server(self):
+        """The `.MockupDB` server."""
+        return self._server
+
     def assert_matches(self, *args, **kwargs):
         """Assert this matches a `matcher spec`_  and return self."""
         matcher = make_matcher(*args, **kwargs)
