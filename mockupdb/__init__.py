@@ -106,7 +106,7 @@ __all__ = [
     'Request', 'Command', 'OpQuery', 'OpGetMore', 'OpKillCursors', 'OpInsert',
     'OpUpdate', 'OpDelete', 'OpReply',
 
-    'Matcher',
+    'Matcher', 'absent',
 ]
 
 
@@ -753,6 +753,9 @@ class OpReply(object):
         return rep + ')'
 
 
+absent = object()
+
+
 class Matcher(object):
     """Matches a subset of `.Request` objects.
 
@@ -788,6 +791,13 @@ class Matcher(object):
         >>> Matcher({'a': 2}).matches({'a': 1})
         False
         >>> Matcher({'a': 1}).matches({'a': 1, 'b': 1})
+        True
+
+        Prohibit a field:
+
+        >>> Matcher({'a': absent}).matches({'a': 1})
+        False
+        >>> Matcher({'a': absent}).matches({'b': 1})
         True
 
         Order matters if you use an OrderedDict:
@@ -896,7 +906,7 @@ class Matcher(object):
         for i, doc in enumerate(self._prototype.docs):
             other_doc = request.docs[i]
             for key, value in doc.items():
-                if other_doc.get(key) != value:
+                if other_doc.get(key, absent) != value:
                     return False
             if isinstance(doc, (OrderedDict, bson.SON)):
                 if not isinstance(other_doc, (OrderedDict, bson.SON)):
