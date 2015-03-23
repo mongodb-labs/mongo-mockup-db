@@ -758,7 +758,7 @@ class OpReply(object):
         return rep + ')'
 
 
-absent = object()
+absent = {'absent': 1}
 
 
 class Matcher(object):
@@ -800,9 +800,11 @@ class Matcher(object):
 
         Prohibit a field:
 
-        >>> Matcher({'a': absent}).matches({'a': 1})
+        >>> Matcher({'field': absent})
+        Matcher(Request({"field": {"absent": 1}}))
+        >>> Matcher({'field': absent}).matches({'field': 1})
         False
-        >>> Matcher({'a': absent}).matches({'b': 1})
+        >>> Matcher({'field': absent}).matches({'otherField': 1})
         True
 
         Order matters if you use an OrderedDict:
@@ -911,7 +913,10 @@ class Matcher(object):
         for i, doc in enumerate(self._prototype.docs):
             other_doc = request.docs[i]
             for key, value in doc.items():
-                if other_doc.get(key, absent) != value:
+                if value is absent:
+                    if key in other_doc:
+                        return False
+                elif other_doc.get(key, None) != value:
                     return False
             if isinstance(doc, (OrderedDict, bson.SON)):
                 if not isinstance(other_doc, (OrderedDict, bson.SON)):
