@@ -21,18 +21,9 @@ from bson import SON
 from bson.codec_options import CodecOptions
 from pymongo.errors import ConnectionFailure
 from pymongo.topology_description import TOPOLOGY_TYPE
-from pymongo import MongoClient, ReadPreference, message
+from pymongo import MongoClient, ReadPreference, message, WriteConcern
 
-from mockupdb import (Command,
-                      Future,
-                      go,
-                      going,
-                      MockupDB,
-                      OpInsert,
-                      OpReply,
-                      OpQuery,
-                      Request,
-                      wait_until)
+from mockupdb import *
 from tests import unittest  # unittest2 on Python 2.6.
 
 
@@ -105,9 +96,7 @@ class TestRequest(unittest.TestCase):
         self.assertEqual('Request()', repr(Request()))
         self.assertEqual('Request({})', repr(Request({})))
         self.assertEqual('Request({})', repr(Request([{}])))
-        self.assertEqual('Request(flags=SlaveOkay)', repr(Request(flags=4)))
-        self.assertEqual('Request({}, flags=TailableCursor|AwaitData)',
-                         repr(Request({}, flags=34)))
+        self.assertEqual('Request(flags=4)', repr(Request(flags=4)))
 
         self.assertEqual('OpQuery({})', repr(OpQuery()))
         self.assertEqual('OpQuery({})', repr(OpQuery({})))
@@ -115,6 +104,8 @@ class TestRequest(unittest.TestCase):
         self.assertEqual('OpQuery({}, flags=SlaveOkay)', repr(OpQuery(flags=4)))
         self.assertEqual('OpQuery({}, flags=SlaveOkay)',
                          repr(OpQuery({}, flags=4)))
+        self.assertEqual('OpQuery({}, flags=TailableCursor|AwaitData)',
+                         repr(OpQuery({}, flags=34)))
 
         self.assertEqual('Command({})', repr(Command()))
         self.assertEqual('Command({"foo": 1})', repr(Command('foo')))
@@ -125,6 +116,69 @@ class TestRequest(unittest.TestCase):
 
         self.assertEqual('OpInsert({}, {})', repr(OpInsert([{}, {}])))
         self.assertEqual('OpInsert({}, {})', repr(OpInsert({}, {})))
+
+
+class TestLegacyWrites(unittest.TestCase):
+    def setUp(self):
+        self.server = MockupDB(auto_ismaster=True)
+        self.server.run()
+        self.addCleanup(self.server.stop)
+        self.client = MongoClient(self.server.uri)
+        self.collection = self.client.db.collection
+
+    def test_insert_one(self):
+        with going(self.collection.insert_one, {'_id': 1}) as future:
+            self.server.receives(OpInsert({'_id': 1}, flags=0))
+            self.server.receives(Command('getlasterror')).replies_to_gle()
+
+        self.assertEqual(1, future().inserted_id)
+
+    def test_insert_many(self):
+        collection = self.collection.with_options(write_concern=WriteConcern(0))
+        flags = INSERT_FLAGS['ContinueOnError']
+        docs = [{'_id': 1}, {'_id': 2}]
+        with going(collection.insert_many, docs, ordered=False) as future:
+            request = self.server.receives(OpInsert(docs, flags=flags))
+            self.assertEqual(1, request.flags)
+
+        self.assertEqual([1, 2], future().inserted_ids)
+
+    def test_replace_one(self):
+        with going(self.collection.replace_one, {}, {}) as future:
+            self.server.receives(OpUpdate({}, {}, flags=0))
+            request = self.server.receives(Command('getlasterror'))
+            request.replies_to_gle(upserted=1)
+
+        self.assertEqual(1, future().upserted_id)
+
+    def test_update_many(self):
+        flags = UPDATE_FLAGS['MultiUpdate']
+        with going(self.collection.update_many, {}, {'$unset': 'a'}) as future:
+            update = self.server.receives(OpUpdate({}, {}, flags=flags))
+            self.assertEqual(2, update.flags)
+            gle = self.server.receives(Command('getlasterror'))
+            gle.replies_to_gle(upserted=1)
+
+        self.assertEqual(1, future().upserted_id)
+
+    def test_delete_one(self):
+        flags = DELETE_FLAGS['SingleRemove']
+        with going(self.collection.delete_one, {}) as future:
+            delete = self.server.receives(OpDelete({}, flags=flags))
+            self.assertEqual(1, delete.flags)
+            gle = self.server.receives(Command('getlasterror'))
+            gle.replies_to_gle(n=1)
+
+        self.assertEqual(1, future().deleted_count)
+
+    def test_delete_many(self):
+        with going(self.collection.delete_many, {}) as future:
+            delete = self.server.receives(OpDelete({}, flags=0))
+            self.assertEqual(0, delete.flags)
+            gle = self.server.receives(Command('getlasterror'))
+            gle.replies_to_gle(n=2)
+
+        self.assertEqual(2, future().deleted_count)
 
 
 # TODO: Move to pymongo-mockup-tests

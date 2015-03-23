@@ -327,6 +327,7 @@ class Request(object):
     """
     opcode = None
     is_command = None
+    _flags_map = None
 
     def __init__(self, *args, **kwargs):
         self._flags = kwargs.pop('flags', None)
@@ -478,9 +479,12 @@ class Request(object):
             parts.append(docs_repr(*self.docs))
 
         if self._flags:
-            parts.append('flags=%s' % (
-                '|'.join(name for name, value in QUERY_FLAGS.items()
-                         if self._flags & value)))
+            if self._flags_map:
+                parts.append('flags=%s' % (
+                    '|'.join(name for name, value in self._flags_map.items()
+                             if self._flags & value)))
+            else:
+                parts.append('flags=%d' % self._flags)
 
         if self._namespace:
             parts.append('namespace="%s"' % self._namespace)
@@ -492,6 +496,7 @@ class OpQuery(Request):
     """A query (besides a command) the client executes on the server."""
     opcode = OP_QUERY
     is_command = False
+    _flags_map = QUERY_FLAGS
 
     @classmethod
     def unpack(cls, msg, client, server, request_id):
@@ -665,6 +670,12 @@ class OpKillCursors(Request):
 class _LegacyWrite(Request):
     is_command = False
 
+
+class OpInsert(_LegacyWrite):
+    """A legacy OP_INSERT the client executes on the server."""
+    opcode = OP_INSERT
+    _flags_map = INSERT_FLAGS
+
     @classmethod
     def unpack(cls, msg, client, server, request_id):
         """Parse message and return an `OpInsert`.
@@ -679,19 +690,44 @@ class _LegacyWrite(Request):
                    request_id=request_id, server=server)
 
 
-class OpInsert(_LegacyWrite):
-    """A legacy OP_INSERT the client executes on the server."""
-    opcode = OP_INSERT
-
-
 class OpUpdate(_LegacyWrite):
     """A legacy OP_UPDATE the client executes on the server."""
     opcode = OP_UPDATE
+    _flags_map = UPDATE_FLAGS
+
+    @classmethod
+    def unpack(cls, msg, client, server, request_id):
+        """Parse message and return an `OpUpdate`.
+
+        Takes the client message as bytes, the client and server socket objects,
+        and the client request id.
+        """
+        # First 4 bytes of OP_UPDATE are "reserved".
+        namespace, pos = _get_c_string(msg, 4)
+        flags, = _UNPACK_INT(msg[pos:pos + 4])
+        docs = bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
+        return cls(*docs, namespace=namespace, flags=flags, client=client,
+                   request_id=request_id, server=server)
 
 
 class OpDelete(_LegacyWrite):
     """A legacy OP_DELETE the client executes on the server."""
     opcode = OP_DELETE
+    _flags_map = DELETE_FLAGS
+
+    @classmethod
+    def unpack(cls, msg, client, server, request_id):
+        """Parse message and return an `OpDelete`.
+
+        Takes the client message as bytes, the client and server socket objects,
+        and the client request id.
+        """
+        # First 4 bytes of OP_DELETE are "reserved".
+        namespace, pos = _get_c_string(msg, 4)
+        flags, = _UNPACK_INT(msg[pos:pos + 4])
+        docs = bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
+        return cls(*docs, namespace=namespace, flags=flags, client=client,
+                   request_id=request_id, server=server)
 
 
 class OpReply(object):
