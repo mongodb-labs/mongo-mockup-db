@@ -104,7 +104,7 @@ __all__ = [
     'REPLY_FLAGS',
 
     'Request', 'Command', 'OpQuery', 'OpGetMore', 'OpKillCursors', 'OpInsert',
-    'OpDelete', 'OpReply',
+    'OpUpdate', 'OpDelete', 'OpReply',
 
     'Matcher',
 ]
