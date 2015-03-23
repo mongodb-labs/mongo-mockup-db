@@ -961,7 +961,9 @@ class Matcher(object):
                     raise TypeError(
                         "Can't compare ordered and unordered document types:"
                         " %r, %r" % (doc, other_doc))
-                if not seq_match(list(doc.keys()), list(other_doc.keys())):
+                keys = [key for key, value in doc.items()
+                        if value is not absent]
+                if not seq_match(keys, list(other_doc.keys())):
                     return False
         return True
 
