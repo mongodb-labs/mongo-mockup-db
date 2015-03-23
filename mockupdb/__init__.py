@@ -1509,7 +1509,7 @@ def make_docs(*args, **kwargs):
         # server.receives().ok(0, err='uh oh').
         if args[1:]:
             raise_args_err(err_msg, ValueError)
-        doc = {'ok': args[0]}
+        doc = OrderedDict({'ok': args[0]})
         doc.update(kwargs)
         return [doc]
 
