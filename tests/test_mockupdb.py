@@ -127,6 +127,7 @@ class TestRequest(unittest.TestCase):
         self.assertEqual('OpInsert({}, {})', repr(OpInsert({}, {})))
 
 
+# TODO: Move to pymongo-mockup-tests
 class TestIsMasterFrequency(unittest.TestCase):
     def test_server_selection(self):
         primary, secondary, slow = servers = [MockupDB() for _ in range(3)]
