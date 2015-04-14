@@ -5,6 +5,7 @@
 
 import contextlib
 import time
+import ssl
 import sys
 
 if sys.version_info[0] < 3:
@@ -195,6 +196,23 @@ class TestMatcher(unittest.TestCase):
 
         self.assertFalse(
             Matcher(Command('a', b=1)).matches(Command('a', b=2)))
+
+
+class TestSSL(unittest.TestCase):
+    def test_ssl_uri(self):
+        server = MockupDB(ssl=True)
+        server.run()
+        self.addCleanup(server.stop)
+        self.assertEqual(
+            'mongodb://localhost:%d/?ssl=true' % server.port,
+            server.uri)
+
+    def test_ssl_basic(self):
+        server = MockupDB(ssl=True, auto_ismaster=True)
+        server.run()
+        self.addCleanup(server.stop)
+        client = MongoClient(server.uri, ssl_cert_reqs=ssl.CERT_NONE)
+        client.db.command('ismaster')
 
 
 # TODO: Move to pymongo-mockup-tests

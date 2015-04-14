@@ -46,6 +46,7 @@ import inspect
 import os
 import random
 import select
+import ssl
 import socket
 import struct
 import traceback
@@ -1080,11 +1081,14 @@ class MockupDB(object):
         to disable.
       - `auto_ismaster`: pass ``True`` to autorespond ``{'ok': 1}`` to
         ismaster requests, or pass a dict or `OpReply`.
+      - `ssl`: pass ``True`` to require SSL.
     """
     def __init__(self, port=None, verbose=False,
-                 request_timeout=10, reply_timeout=10, auto_ismaster=None):
+                 request_timeout=10, reply_timeout=10, auto_ismaster=None,
+                 ssl=False):
         self._address = ('localhost', port)
         self._verbose = verbose
+        self._ssl = ssl
 
         # TODO: test & implement. Should be much shorter?
         self._request_timeout = request_timeout
@@ -1114,6 +1118,12 @@ class MockupDB(object):
     def run(self):
         """Begin serving. Returns the bound port."""
         self._listening_sock, self._address = bind_socket(self._address)
+        if self._ssl:
+            certfile = os.path.join(os.path.dirname(__file__), 'server.pem')
+            self._listening_sock = ssl.wrap_socket(
+                self._listening_sock,
+                certfile=certfile,
+                server_side=True)
         self._accept_thread = threading.Thread(target=self._accept_loop)
         self._accept_thread.daemon = True
         self._accept_thread.start()
@@ -1360,7 +1370,8 @@ class MockupDB(object):
     def uri(self):
         """Connection string to pass to `~pymongo.mongo_client.MongoClient`."""
         assert self.host and self.port
-        return 'mongodb://%s:%s' % self._address
+        uri = 'mongodb://%s:%s' % self._address
+        return uri + '/?ssl=true' if self._ssl else uri
 
     @property
     def verbose(self):
