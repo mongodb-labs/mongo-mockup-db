@@ -15,7 +15,7 @@ with open('README.rst') as readme_file:
 with open('CHANGELOG.rst') as changelog_file:
     changelog = changelog_file.read().replace('.. :changelog:', '')
 
-requirements = ['pymongo']
+requirements = ['pymongo>=3']
 
 test_requirements = []
 
@@ -36,9 +36,6 @@ setup(
     package_dir={'mockupdb': 'mockupdb'},
     include_package_data=True,
     install_requires=requirements,
-    dependency_links=[
-        'https://github.com/mongodb/mongo-python-driver/archive/3.0b0.tar.gz'
-        '#egg=pymongo'],
     license="Apache License, Version 2.0",
     zip_safe=False,
     keywords=["mongo", "mongodb", "wire protocol", "mockmongodb", "mock"],
