@@ -327,6 +327,7 @@ class Request(object):
     """
     opcode = None
     is_command = None
+    _non_matched_attrs = 'doc', 'docs'
     _flags_map = None
 
     def __init__(self, *args, **kwargs):
@@ -451,6 +452,27 @@ class Request(object):
     hangs_up = hangup
     """Synonym for `.hangup`."""
 
+    def _matches_docs(self, docs, other_docs):
+        """Overridable method."""
+        for i, doc in enumerate(docs):
+            other_doc = other_docs[i]
+            for key, value in doc.items():
+                if value is absent:
+                    if key in other_doc:
+                        return False
+                elif other_doc.get(key, None) != value:
+                    return False
+            if isinstance(doc, (OrderedDict, bson.SON)):
+                if not isinstance(other_doc, (OrderedDict, bson.SON)):
+                    raise TypeError(
+                        "Can't compare ordered and unordered document types:"
+                        " %r, %r" % (doc, other_doc))
+                keys = [key for key, value in doc.items()
+                        if value is not absent]
+                if not seq_match(keys, list(other_doc.keys())):
+                    return False
+        return True
+
     def _replies(self, *args, **kwargs):
         """Overridable method."""
         reply_msg = make_reply(*args, **kwargs)
@@ -571,6 +593,9 @@ class Command(OpQuery):
     """A command the client executes on the server."""
     is_command = True
 
+    # Check command name case-insensitively.
+    _non_matched_attrs = OpQuery._non_matched_attrs + ('command_name', )
+
     @property
     def command_name(self):
         """The command name or None.
@@ -582,6 +607,23 @@ class Command(OpQuery):
         """
         if self.docs and self.docs[0]:
             return list(self.docs[0])[0]
+
+    def _matches_docs(self, docs, other_docs):
+        assert len(docs) == len(other_docs) == 1
+        doc, = docs
+        other_doc, = other_docs
+        items = list(doc.items())
+        other_items = list(other_doc.items())
+
+        # Compare command name case-insensitively.
+        if items and other_items:
+            if items[0][0].lower() != other_items[0][0].lower():
+                return False
+            if items[0][1] != other_items[0][1]:
+                return False
+        return super(Command, self)._matches_docs(
+            [OrderedDict(items[1:])],
+            [OrderedDict(other_items[1:])])
 
     def _replies(self, *args, **kwargs):
         reply = make_reply(*args, **kwargs)
@@ -891,6 +933,11 @@ class Matcher(object):
         >>> Matcher(Command).matches(OpQuery)
         False
 
+        The command name is matched case-insensitively:
+
+        >>> Matcher(Command('ismaster')).matches(Command('IsMaster'))
+        True
+
         You can match properties specific to certain opcodes:
 
         >>> m = Matcher(OpGetMore, num_to_return=3)
@@ -937,7 +984,7 @@ class Matcher(object):
         if self._prototype.is_command not in (None, request.is_command):
             return False
         for name in dir(self._prototype):
-            if name.startswith('_') or name in ('doc', 'docs'):
+            if name.startswith('_') or name in request._non_matched_attrs:
                 # Ignore privates, and handle documents specially.
                 continue
             prototype_value = getattr(self._prototype, name, None)
@@ -948,24 +995,8 @@ class Matcher(object):
                 return False
         if len(self._prototype.docs) not in (0, len(request.docs)):
             return False
-        for i, doc in enumerate(self._prototype.docs):
-            other_doc = request.docs[i]
-            for key, value in doc.items():
-                if value is absent:
-                    if key in other_doc:
-                        return False
-                elif other_doc.get(key, None) != value:
-                    return False
-            if isinstance(doc, (OrderedDict, bson.SON)):
-                if not isinstance(other_doc, (OrderedDict, bson.SON)):
-                    raise TypeError(
-                        "Can't compare ordered and unordered document types:"
-                        " %r, %r" % (doc, other_doc))
-                keys = [key for key, value in doc.items()
-                        if value is not absent]
-                if not seq_match(keys, list(other_doc.keys())):
-                    return False
-        return True
+
+        return self._prototype._matches_docs(self._prototype.docs, request.docs)
 
     @property
     def prototype(self):
@@ -1075,9 +1106,9 @@ class MockupDB(object):
         # like those sent to request.reply().
         self._autoresponders = []
         if auto_ismaster is True:
-            self.autoresponds('ismaster')
+            self.autoresponds(Command('ismaster'))
         elif auto_ismaster:
-            self.autoresponds('ismaster', auto_ismaster)
+            self.autoresponds(Command('ismaster'), auto_ismaster)
 
     @_synchronized
     def run(self):

@@ -138,8 +138,7 @@ class TestLegacyWrites(unittest.TestCase):
         flags = INSERT_FLAGS['ContinueOnError']
         docs = [{'_id': 1}, {'_id': 2}]
         with going(collection.insert_many, docs, ordered=False) as future:
-            request = self.server.receives(OpInsert(docs, flags=flags))
-            self.assertEqual(1, request.flags)
+            self.server.receives(OpInsert(docs, flags=flags))
 
         self.assertEqual([1, 2], future().inserted_ids)
 
@@ -179,6 +178,23 @@ class TestLegacyWrites(unittest.TestCase):
             gle.replies_to_gle(n=2)
 
         self.assertEqual(2, future().deleted_count)
+
+
+class TestMatcher(unittest.TestCase):
+    def test_command_name_case_insensitive(self):
+        self.assertTrue(
+            Matcher(Command('ismaster')).matches(Command('IsMaster')))
+
+    def test_command_first_arg(self):
+        self.assertFalse(
+            Matcher(Command(ismaster=1)).matches(Command(ismaster=2)))
+
+    def test_command_fields(self):
+        self.assertTrue(
+            Matcher(Command('a', b=1)).matches(Command('a', b=1)))
+
+        self.assertFalse(
+            Matcher(Command('a', b=1)).matches(Command('a', b=2)))
 
 
 # TODO: Move to pymongo-mockup-tests
