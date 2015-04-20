@@ -94,7 +94,6 @@ else:
 """)
 
 
-# Do not export "main".
 __all__ = [
     'MockupDB', 'go', 'going', 'Future', 'wait_until', 'interactive_server',
 
