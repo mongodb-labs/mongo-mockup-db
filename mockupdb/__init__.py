@@ -71,6 +71,11 @@ try:
 except ImportError:
     from cStringIO import StringIO
 
+try:
+    from SocketServer import ThreadingMixIn, TCPServer, BaseRequestHandler
+except ImportError:
+    from socketserver import ThreadingMixIn, TCPServer, BaseRequestHandler
+
 import bson                 # From PyMongo 3.0.
 import bson.codec_options   # From PyMongo 3.0.
 import bson.json_util       # From PyMongo 3.0.
@@ -1061,6 +1066,29 @@ class _AutoResponder(object):
             self._matcher, self._args, self._kwargs)
 
 
+class WireProtocolRequestHandler(BaseRequestHandler):
+    def handle(self):
+        # self.request is the socket connected to the client.
+        mockup_db = self.server.mockup_db_ref()
+        if mockup_db:
+            mockup_db._server_loop(self.request, self.client_address)
+
+
+class _ThreadedTCPServer(ThreadingMixIn, TCPServer):
+    allow_reuse_address = True
+
+    def __init__(self,
+                 mockup_db,
+                 server_address,
+                 RequestHandlerClass,
+                 bind_and_activate=True):
+        TCPServer.__init__(self,
+                           server_address,
+                           RequestHandlerClass,
+                           bind_and_activate)
+        self.mockup_db_ref = weakref.ref(mockup_db, self.shutdown)
+
+
 class MockupDB(object):
     """A simulated mongod or mongos.
 
@@ -1082,28 +1110,33 @@ class MockupDB(object):
         ismaster requests, or pass a dict or `OpReply`.
       - `ssl`: pass ``True`` to require SSL.
     """
-    def __init__(self, port=None, verbose=False,
+
+    def __init__(self, port=0, verbose=False,
                  request_timeout=10, reply_timeout=10, auto_ismaster=None,
                  ssl=False):
-        self._address = ('localhost', port)
+
+        self._server = _ThreadedTCPServer(
+            self,
+            ('localhost', port),
+            WireProtocolRequestHandler,
+            bind_and_activate=False)  # Don't start yet.
+        self._stopped = False
         self._verbose = verbose
-        self._ssl = ssl
+        self._ssl = ssl  # TODO
 
         # TODO: test & implement. Should be much shorter?
         self._request_timeout = request_timeout
         self._reply_timeout = reply_timeout
 
-        self._listening_sock = None
-        self._accept_thread = None
-
-        # Track sockets that we want to close in stop(). Keys are sockets,
-        # values are None (this could be a WeakSet but it's new in Python 2.7).
-        self._server_threads = weakref.WeakKeyDictionary()
-        self._server_socks = weakref.WeakKeyDictionary()
-        self._stopped = False
+        self._server_thread_ref = None
         self._request_q = _PeekableQueue()
         self._requests_count = 0
         self._lock = threading.Lock()
+
+        # Track sockets that we want to close in stop(). Keys are sockets,
+        # values are None (this could be a WeakSet but it's new in Python 2.7).
+        self._server_socks = weakref.WeakKeyDictionary()
+        self._server_thread = weakref.WeakValueDictionary()
 
         # List of (request_matcher, args, kwargs), where args and kwargs are
         # like those sent to request.reply().
@@ -1116,31 +1149,27 @@ class MockupDB(object):
     @_synchronized
     def run(self):
         """Begin serving. Returns the bound port."""
-        self._listening_sock, self._address = bind_socket(self._address)
-        if self._ssl:
-            certfile = os.path.join(os.path.dirname(__file__), 'server.pem')
-            self._listening_sock = ssl.wrap_socket(
-                self._listening_sock,
-                certfile=certfile,
-                server_side=True)
-        self._accept_thread = threading.Thread(target=self._accept_loop)
-        self._accept_thread.daemon = True
-        self._accept_thread.start()
+        self._server.server_bind()
+        self._server.server_activate()
+        server_thread = threading.Thread(
+            target=self._server.serve_forever,
+            kwargs={'poll_interval': 0.05})  # Notice shutdown sooner.
+        server_thread.daemon = True
+        server_thread.start()
+        self._server_thread[None] = server_thread
         return self.port
 
     @_synchronized
     def stop(self):
         """Stop serving. Always call this to clean up after yourself."""
         self._stopped = True
-        threads = [self._accept_thread]
-        threads.extend(self._server_threads)
-        self._listening_sock.close()
+        self._server.shutdown()
         for sock in self._server_socks:
             sock.close()
 
-        with self._unlock():
-            for thread in threads:
-                thread.join(10)
+        server_thread = self._server_thread.get(None)
+        if server_thread:
+            server_thread.join(10)
 
     def receives(self, *args, **kwargs):
         """Pop the next `Request` and assert it matches.
@@ -1348,28 +1377,28 @@ class MockupDB(object):
     @property
     def address(self):
         """The listening (host, port)."""
-        return self._address
+        return self._server.server_address
 
     @property
     def address_string(self):
         """The listening "host:port"."""
-        return '%s:%d' % self._address
+        return '%s:%d' % self.address
 
     @property
     def host(self):
         """The listening hostname."""
-        return self._address[0]
+        return self.address[0]
 
     @property
     def port(self):
         """The listening port."""
-        return self._address[1]
+        return self.address[1]
 
     @property
     def uri(self):
         """Connection string to pass to `~pymongo.mongo_client.MongoClient`."""
         assert self.host and self.port
-        uri = 'mongodb://%s:%s' % self._address
+        uri = 'mongodb://%s:%s' % self.address
         return uri + '/?ssl=true' if self._ssl else uri
 
     @property
@@ -1407,42 +1436,15 @@ class MockupDB(object):
     @_synchronized
     def running(self):
         """If this server is started and not stopped."""
-        return self._accept_thread and not self._stopped
-
-    def _accept_loop(self):
-        """Accept client connections and spawn a thread for each."""
-        self._listening_sock.setblocking(0)
-        while not self._stopped:
-            try:
-                # Wait a short time to accept.
-                if select.select([self._listening_sock.fileno()], [], [], 1):
-                    client, client_addr = self._listening_sock.accept()
-                    if self._verbose:
-                        print('connection from %s:%s' % client_addr)
-                    server_thread = threading.Thread(
-                        target=functools.partial(
-                            self._server_loop, client, client_addr))
-
-                    # Store weakrefs to the thread and socket, so we can
-                    # dispose them in stop().
-                    self._server_threads[server_thread] = None
-                    self._server_socks[client] = None
-
-                    server_thread.daemon = True
-                    server_thread.start()
-            except socket.error as error:
-                if error.errno not in (errno.EAGAIN, errno.EBADF):
-                    raise
-            except select.error as error:
-                if error.args[0] == errno.EBADF:
-                    # Closed.
-                    break
-                else:
-                    raise
+        return self._server_thread and not self._stopped
 
     @_synchronized
     def _server_loop(self, client, client_addr):
         """Read requests from one client socket, 'client'."""
+        self._server_socks[client] = None
+        if self._verbose:
+            print('connection from %s:%s' % client_addr)
+
         while not self._stopped:
             try:
                 with self._unlock():
