@@ -46,7 +46,7 @@ import inspect
 import os
 import random
 import select
-import ssl
+import ssl as _ssl
 import socket
 import struct
 import traceback
@@ -1119,7 +1119,7 @@ class MockupDB(object):
         self._listening_sock, self._address = bind_socket(self._address)
         if self._ssl:
             certfile = os.path.join(os.path.dirname(__file__), 'server.pem')
-            self._listening_sock = ssl.wrap_socket(
+            self._listening_sock = _ssl.wrap_socket(
                 self._listening_sock,
                 certfile=certfile,
                 server_side=True)
