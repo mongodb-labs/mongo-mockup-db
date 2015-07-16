@@ -453,8 +453,8 @@ class Request(object):
 
         Returns True so it is suitable as an `~MockupDB.autoresponds` handler.
         """
-        if self._verbose:
-            print('\t%d\thangup' % self.client_port)
+        if self._server:
+            self._server._log('\t%d\thangup' % self.client_port)
         self._client.shutdown(socket.SHUT_RDWR)
         return True
 
@@ -485,8 +485,8 @@ class Request(object):
     def _replies(self, *args, **kwargs):
         """Overridable method."""
         reply_msg = make_reply(*args, **kwargs)
-        if self._verbose:
-            print('\t%d\t<-- %r' % (self.client_port, reply_msg))
+        if self._server:
+            self._server._log('\t%d\t<-- %r' % (self.client_port, reply_msg))
         reply_bytes = reply_msg.reply_bytes(self)
         self._client.sendall(reply_bytes)
 
@@ -1096,6 +1096,7 @@ class MockupDB(object):
                  ssl=False):
         self._address = ('localhost', port)
         self._verbose = verbose
+        self._label = None
         self._ssl = ssl
 
         # TODO: test & implement. Should be much shorter?
@@ -1393,6 +1394,15 @@ class MockupDB(object):
         self._verbose = value
 
     @property
+    def label(self):
+        """Label for logging, or None."""
+        return self._label
+
+    @label.setter
+    def label(self, value):
+        self._label = value
+
+    @property
     def requests_count(self):
         """Number of requests this server has received.
 
@@ -1426,8 +1436,7 @@ class MockupDB(object):
                 # Wait a short time to accept.
                 if select.select([self._listening_sock.fileno()], [], [], 1):
                     client, client_addr = self._listening_sock.accept()
-                    if self._verbose:
-                        print('connection from %s:%s' % client_addr)
+                    self._log('connection from %s:%s' % client_addr)
                     server_thread = threading.Thread(
                         target=functools.partial(
                             self._server_loop, client, client_addr))
@@ -1458,14 +1467,12 @@ class MockupDB(object):
                     request = mock_server_receive_request(client, self)
 
                 self._requests_count += 1
-                if self._verbose:
-                    print('%d\t%r' % (request.client_port, request))
+                self._log('%d\t%r' % (request.client_port, request))
 
                 # Give most recently added responders precedence.
                 for responder in reversed(self._autoresponders):
                     if responder.handle(request):
-                        if self._verbose:
-                            print('\t(autoresponse)')
+                        self._log('\t(autoresponse)')
                         break
                 else:
                     self._request_q.put(request)
@@ -1481,9 +1488,14 @@ class MockupDB(object):
                 else:
                     raise
 
-        if self._verbose:
-            print('disconnected: %s:%d' % client_addr)
+        self._log('disconnected: %s:%d' % client_addr)
         client.close()
+
+    def _log(self, msg):
+        if self._verbose:
+            if self._label:
+                msg = '%s:\t%s' % (self._label, msg)
+            print(msg)
 
     @contextlib.contextmanager
     def _unlock(self):
