@@ -172,6 +172,15 @@ def going(fn, *args, **kwargs):
 
     >>> with going(lambda: "don't care"):
     ...    pass
+
+
+    If an exception is raised within the context, the result is lost:
+
+    >>> with going(lambda: 'return value' as future):
+    ...    assert 1 == 0
+    Traceback (most recent call last):
+    ...
+    AssertionError
     """
     future = go(fn, *args, **kwargs)
     try:
