@@ -198,6 +198,24 @@ class TestMatcher(unittest.TestCase):
             Matcher(Command('a', b=1)).matches(Command('a', b=2)))
 
 
+class TestAutoresponds(unittest.TestCase):
+    def test_auto_dequeue(self):
+        server = MockupDB(auto_ismaster=True)
+        server.run()
+        client = MongoClient(server.uri)
+        future = go(client.admin.command, 'ping')
+        server.autoresponds('ping')  # Should dequeue the request.
+        future()
+
+    def test_autoresponds_case_insensitive(self):
+        server = MockupDB()
+        # Little M. Note this is only case-insensitive because it's a Command.
+        server.autoresponds(Command('ismaster'), foo='bar')
+        server.run()
+        response = MongoClient(server.uri).admin.command('isMaster')  # Big M.
+        self.assertEqual('bar', response['foo'])
+
+
 class TestSSL(unittest.TestCase):
     def test_ssl_uri(self):
         server = MockupDB(ssl=True)
