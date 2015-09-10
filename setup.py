@@ -26,8 +26,7 @@ if sys.version_info[:2] == (2, 6):
 setup(
     name='mockupdb',
     version='0.1.0',
-    description=("Mock server to test MongoDB clients and creating MongoDB Wire"
-                 " Protocol servers."),
+    description="MongoDB Wire Protocol server library",
     long_description=readme + '\n\n' + changelog,
     author="A. Jesse Jiryu Davis",
     author_email='jesse@mongodb.com',
@@ -38,7 +37,7 @@ setup(
     install_requires=requirements,
     license="Apache License, Version 2.0",
     zip_safe=False,
-    keywords=["mongo", "mongodb", "wire protocol", "mockmongodb", "mock"],
+    keywords=["mongo", "mongodb", "wire protocol", "mockupdb", "mock"],
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
