@@ -71,11 +71,12 @@ try:
 except ImportError:
     from cStringIO import StringIO
 
-import bson                 # From PyMongo 3.0.
-import bson.codec_options   # From PyMongo 3.0.
-import bson.json_util       # From PyMongo 3.0.
+# Pure-Python bson lib vendored in from PyMongo 3.0.3.
+import _bson
+import _bson.codec_options
+import _bson.json_util
 
-CODEC_OPTIONS = bson.codec_options.CodecOptions(document_class=OrderedDict)
+CODEC_OPTIONS = _bson.codec_options.CodecOptions(document_class=OrderedDict)
 
 PY3 = sys.version_info[0] == 3
 if PY3:
@@ -176,7 +177,7 @@ def going(fn, *args, **kwargs):
 
     If an exception is raised within the context, the result is lost:
 
-    >>> with going(lambda: 'return value' as future):
+    >>> with going(lambda: 'return value') as future:
     ...    assert 1 == 0
     Traceback (most recent call last):
     ...
@@ -471,8 +472,8 @@ class Request(object):
                         return False
                 elif other_doc.get(key, None) != value:
                     return False
-            if isinstance(doc, (OrderedDict, bson.SON)):
-                if not isinstance(other_doc, (OrderedDict, bson.SON)):
+            if isinstance(doc, (OrderedDict, _bson.SON)):
+                if not isinstance(other_doc, (OrderedDict, _bson.SON)):
                     raise TypeError(
                         "Can't compare ordered and unordered document types:"
                         " %r, %r" % (doc, other_doc))
@@ -543,7 +544,7 @@ class OpQuery(Request):
         pos += 4
         num_to_return, = _UNPACK_INT(msg[pos:pos + 4])
         pos += 4
-        docs = bson.decode_all(msg[pos:], CODEC_OPTIONS)
+        docs = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
         if is_command:
             assert len(docs) == 1
             command_ns = namespace[:-len('.$cmd')]
@@ -736,7 +737,7 @@ class OpInsert(_LegacyWrite):
         """
         flags, = _UNPACK_INT(msg[:4])
         namespace, pos = _get_c_string(msg, 4)
-        docs = bson.decode_all(msg[pos:], CODEC_OPTIONS)
+        docs = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
         return cls(*docs, namespace=namespace, flags=flags, client=client,
                    request_id=request_id, server=server)
 
@@ -756,7 +757,7 @@ class OpUpdate(_LegacyWrite):
         # First 4 bytes of OP_UPDATE are "reserved".
         namespace, pos = _get_c_string(msg, 4)
         flags, = _UNPACK_INT(msg[pos:pos + 4])
-        docs = bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
+        docs = _bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
         return cls(*docs, namespace=namespace, flags=flags, client=client,
                    request_id=request_id, server=server)
 
@@ -776,7 +777,7 @@ class OpDelete(_LegacyWrite):
         # First 4 bytes of OP_DELETE are "reserved".
         namespace, pos = _get_c_string(msg, 4)
         flags, = _UNPACK_INT(msg[pos:pos + 4])
-        docs = bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
+        docs = _bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
         return cls(*docs, namespace=namespace, flags=flags, client=client,
                    request_id=request_id, server=server)
 
@@ -829,7 +830,7 @@ class OpReply(object):
         response_to = request.request_id
 
         data = b''.join([flags, cursor_id, starting_from, number_returned])
-        data += b''.join([bson.BSON.encode(doc) for doc in self._docs])
+        data += b''.join([_bson.BSON.encode(doc) for doc in self._docs])
 
         message = struct.pack("<i", 16 + len(data))
         message += struct.pack("<i", reply_id)
@@ -1726,7 +1727,7 @@ def docs_repr(*args):
     >>> print(docs_repr(OrderedDict([(u'ts', now)])))
     {"ts": {"$date": 123456000}}
     >>>
-    >>> oid = bson.ObjectId(b'123456781234567812345678')
+    >>> oid = _bson.ObjectId(b'123456781234567812345678')
     >>> print(docs_repr(OrderedDict([(u'oid', oid)])))
     {"oid": {"$oid": "123456781234567812345678"}}
     """
@@ -1734,7 +1735,7 @@ def docs_repr(*args):
     for doc_idx, doc in enumerate(args):
         if doc_idx > 0:
             sio.write(u', ')
-        sio.write(text_type(bson.json_util.dumps(doc)))
+        sio.write(text_type(_bson.json_util.dumps(doc)))
     return sio.getvalue()
 
 

@@ -15,9 +15,8 @@ with open('README.rst') as readme_file:
 with open('CHANGELOG.rst') as changelog_file:
     changelog = changelog_file.read().replace('.. :changelog:', '')
 
-requirements = ['pymongo>=3']
-
-test_requirements = []
+requirements = []
+test_requirements = ['pymongo>=3']
 
 if sys.version_info[:2] == (2, 6):
     requirements.append('ordereddict')

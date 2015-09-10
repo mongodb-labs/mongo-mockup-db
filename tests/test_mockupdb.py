@@ -21,7 +21,11 @@ from bson import SON
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, message, WriteConcern
 
-from mockupdb import *
+from mockupdb import (go, going,
+                      Command, Matcher, MockupDB, Request,
+                      OpDelete, OpInsert, OpQuery, OpUpdate,
+                      DELETE_FLAGS, INSERT_FLAGS, UPDATE_FLAGS)
+
 from tests import unittest  # unittest2 on Python 2.6.
 
 
