@@ -93,7 +93,7 @@ class TestRequest(unittest.TestCase):
         msg_bytes, request_id = self._pack_request('db.$cmd', True)
         request = OpQuery.unpack(msg_bytes, None, None, request_id)
         self.assertEqual(4, request.flags)
-        
+
     def test_repr(self):
         self.assertEqual('Request()', repr(Request()))
         self.assertEqual('Request({})', repr(Request({})))
@@ -103,7 +103,8 @@ class TestRequest(unittest.TestCase):
         self.assertEqual('OpQuery({})', repr(OpQuery()))
         self.assertEqual('OpQuery({})', repr(OpQuery({})))
         self.assertEqual('OpQuery({})', repr(OpQuery([{}])))
-        self.assertEqual('OpQuery({}, flags=SlaveOkay)', repr(OpQuery(flags=4)))
+        self.assertEqual('OpQuery({}, flags=SlaveOkay)',
+                         repr(OpQuery(flags=4)))
         self.assertEqual('OpQuery({}, flags=SlaveOkay)',
                          repr(OpQuery({}, flags=4)))
         self.assertEqual('OpQuery({}, flags=TailableCursor|AwaitData)',
@@ -114,7 +115,8 @@ class TestRequest(unittest.TestCase):
         son = SON([('b', 1), ('a', 1), ('c', 1)])
         self.assertEqual('Command({"b": 1, "a": 1, "c": 1})',
                          repr(Command(son)))
-        self.assertEqual('Command({}, flags=SlaveOkay)', repr(Command(flags=4)))
+        self.assertEqual('Command({}, flags=SlaveOkay)',
+                         repr(Command(flags=4)))
 
         self.assertEqual('OpInsert({}, {})', repr(OpInsert([{}, {}])))
         self.assertEqual('OpInsert({}, {})', repr(OpInsert({}, {})))
@@ -136,7 +138,9 @@ class TestLegacyWrites(unittest.TestCase):
         self.assertEqual(1, future().inserted_id)
 
     def test_insert_many(self):
-        collection = self.collection.with_options(write_concern=WriteConcern(0))
+        collection = self.collection.with_options(
+            write_concern=WriteConcern(0))
+
         flags = INSERT_FLAGS['ContinueOnError']
         docs = [{'_id': 1}, {'_id': 2}]
         with going(collection.insert_many, docs, ordered=False) as future:
