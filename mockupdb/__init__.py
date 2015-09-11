@@ -518,7 +518,11 @@ class Request(object):
 
 
 class OpQuery(Request):
-    """A query (besides a command) the client executes on the server."""
+    """A query (besides a command) the client executes on the server.
+
+    >>> OpQuery({'i': {'$gt': 2}}, fields={'j': False})
+    OpQuery({"i": {"$gt": 2}}, fields={"j": false})
+    """
     opcode = OP_QUERY
     is_command = False
     _flags_map = QUERY_FLAGS
@@ -580,11 +584,12 @@ class OpQuery(Request):
     @property
     def fields(self):
         """Client query's fields selector or None."""
-        # TODO: test
         return self._fields
 
     def __repr__(self):
         rep = super(OpQuery, self).__repr__().rstrip(')')
+        if self._fields:
+            rep += ', fields=%s' % docs_repr(self._fields)
         if self._num_to_skip is not None:
             rep += ', numToSkip=%d' % self._num_to_skip
         if self._num_to_return is not None:
