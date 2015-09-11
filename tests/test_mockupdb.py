@@ -268,5 +268,19 @@ class TestMockupDB(unittest.TestCase):
                     break
 
 
+class TestResponse(unittest.TestCase):
+    def test_ok(self):
+        server = MockupDB(auto_ismaster={'maxWireVersion': 3})
+        server.run()
+        self.addCleanup(server.stop)
+        client = MongoClient(server.uri)
+
+        with going(client.test.command, {'foo': 1}) as future:
+            server.receives().ok(3)
+
+        response = future()
+        self.assertEqual(3, response['ok'])
+
+
 if __name__ == '__main__':
     unittest.main()
