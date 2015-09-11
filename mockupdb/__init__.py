@@ -985,7 +985,6 @@ class Matcher(object):
         >>> m.matches(OpDelete, flags=DELETE_FLAGS['SingleRemove'])
         False
         """
-        # TODO: just take a Request, not args and kwargs?
         request = make_prototype_request(*args, **kwargs)
         if self._prototype.opcode not in (None, request.opcode):
             return False
