@@ -401,13 +401,6 @@ class Request(object):
         """The `.MockupDB` server."""
         return self._server
 
-    def assert_matches(self, *args, **kwargs):
-        """Assert this matches a `matcher spec`_  and return self."""
-        matcher = make_matcher(*args, **kwargs)
-        if not matcher.matches(self):
-            raise AssertionError('%r does not match %r' % (self, matcher))
-        return self
-
     def matches(self, *args, **kwargs):
         """True if this matches a `matcher spec`_."""
         return make_matcher(*args, **kwargs).matches(self)
@@ -1701,14 +1694,6 @@ def make_reply(*args, **kwargs):
         return args[0]
 
     return OpReply(*args, **kwargs)
-
-
-def unprefixed(bson_str):
-    rep = unicode(repr(bson_str))
-    if rep.startswith(u'u"') or rep.startswith(u"u'"):
-        return rep[1:]
-    else:
-        return rep
 
 
 def docs_repr(*args):
