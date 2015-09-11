@@ -1082,24 +1082,19 @@ class MockupDB(object):
       - `verbose`: if ``True``, print requests and replies to stdout.
       - `request_timeout`: seconds to wait for the next client request, or else
         assert. Default 10 seconds. Pass int(1e6) to disable.
-      - `reply_timeout`: seconds to wait for a call to `Request.replies`, or
-        else assert. Helps catch test bugs. Default 10 seconds. Pass int(1e6)
-        to disable.
       - `auto_ismaster`: pass ``True`` to autorespond ``{'ok': 1}`` to
         ismaster requests, or pass a dict or `OpReply`.
       - `ssl`: pass ``True`` to require SSL.
     """
     def __init__(self, port=None, verbose=False,
-                 request_timeout=10, reply_timeout=10, auto_ismaster=None,
+                 request_timeout=10, auto_ismaster=None,
                  ssl=False):
         self._address = ('localhost', port)
         self._verbose = verbose
         self._label = None
         self._ssl = ssl
 
-        # TODO: test & implement. Should be much shorter?
         self._request_timeout = request_timeout
-        self._reply_timeout = reply_timeout
 
         self._listening_sock = None
         self._accept_thread = None
