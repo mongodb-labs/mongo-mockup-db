@@ -49,7 +49,7 @@ extensions = [
 ]
 
 intersphinx_mapping = {
-    'python': ('http://python.readthedocs.org/en/latest/', None),
+    'python': ('http://python.readthedocs.org/', None),
     'pymongo': ('http://api.mongodb.org/python/current/', None),
 }
 
