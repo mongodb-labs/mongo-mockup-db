@@ -1168,7 +1168,6 @@ class MockupDB(object):
                 request = self._request_q.get(timeout=0.05)
             except Empty:
                 if time.time() > end:
-                    # TODO: show in doctest with timeout.
                     raise AssertionError('expected to receive %r, got nothing'
                                          % matcher.prototype)
             else:

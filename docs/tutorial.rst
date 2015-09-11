@@ -259,6 +259,20 @@ PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
    >>> assert 'writeConcern' not in server.receives()
    >>> client.close()
 
+Wait For A Request Impatiently
+------------------------------
+
+If your test waits for PyMongo to send a request but receives none, it times out
+after 10 seconds by default. This way MockupDB ensures that even failing tests
+all take finite time.
+
+To abbreviate the wait, pass a timeout in seconds to `~MockupDB.receives`:
+
+   >>> server.receives(timeout=0.1)
+    Traceback (most recent call last):
+      ...
+    AssertionError: expected to receive Request(), got nothing
+
 Test Cursor Behavior
 --------------------
 
