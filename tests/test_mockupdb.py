@@ -243,5 +243,30 @@ class TestSSL(unittest.TestCase):
         client.db.command('ismaster')
 
 
+class TestMockupDB(unittest.TestCase):
+    def test_iteration(self):
+        server = MockupDB(auto_ismaster={'maxWireVersion': 3})
+        server.run()
+        self.addCleanup(server.stop)
+        client = MongoClient(server.uri)
+
+        def send_three_docs():
+            for i in range(3):
+                client.test.test.insert({'_id': i})
+
+        with going(send_three_docs):
+            j = 0
+
+            # The "for request in server" statement is the point of this test.
+            for request in server:
+                self.assertTrue(request.matches({'insert': 'test',
+                                                 'documents': [{'_id': j}]}))
+
+                request.ok()
+                j += 1
+                if j == 3:
+                    break
+
+
 if __name__ == '__main__':
     unittest.main()

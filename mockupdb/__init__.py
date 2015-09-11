@@ -1505,7 +1505,6 @@ class MockupDB(object):
         finally:
             self._lock.acquire()
 
-    # TODO: test iteration.
     def __iter__(self):
         return self
 
