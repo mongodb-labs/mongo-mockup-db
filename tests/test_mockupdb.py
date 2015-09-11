@@ -94,6 +94,11 @@ class TestRequest(unittest.TestCase):
         request = OpQuery.unpack(msg_bytes, None, None, request_id)
         self.assertEqual(4, request.flags)
 
+    def test_fields(self):
+        self.assertIsNone(OpQuery({}).fields)
+        self.assertEqual({'_id': False, 'a': 1},
+                         OpQuery({}, fields={'_id': False, 'a': 1}).fields)
+
     def test_repr(self):
         self.assertEqual('Request()', repr(Request()))
         self.assertEqual('Request({})', repr(Request({})))
