@@ -3,6 +3,11 @@
 Changelog
 =========
 
+1.0.2 (2016-09-11)
+------------------
+
+Restore Request.assert_matches method, used in pymongo-mockup-tests.
+
 1.0.1 (2016-09-11)
 ------------------
 

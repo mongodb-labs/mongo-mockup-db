@@ -36,7 +36,7 @@ from __future__ import print_function
 
 __author__ = 'A. Jesse Jiryu Davis'
 __email__ = 'jesse@mongodb.com'
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 import collections
 import contextlib
