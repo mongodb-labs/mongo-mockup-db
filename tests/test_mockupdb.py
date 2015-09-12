@@ -17,6 +17,7 @@ try:
 except ImportError:
     from Queue import Queue
 
+# Tests depend on PyMongo's BSON implementation, but MockupDB itself does not.
 from bson import SON
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, message, WriteConcern
@@ -24,7 +25,7 @@ from pymongo import MongoClient, message, WriteConcern
 from mockupdb import (go, going,
                       Command, Matcher, MockupDB, Request,
                       OpDelete, OpInsert, OpQuery, OpUpdate,
-                      DELETE_FLAGS, INSERT_FLAGS, UPDATE_FLAGS)
+                      DELETE_FLAGS, INSERT_FLAGS, UPDATE_FLAGS, QUERY_FLAGS)
 
 from tests import unittest  # unittest2 on Python 2.6.
 
@@ -125,6 +126,13 @@ class TestRequest(unittest.TestCase):
 
         self.assertEqual('OpInsert({}, {})', repr(OpInsert([{}, {}])))
         self.assertEqual('OpInsert({}, {})', repr(OpInsert({}, {})))
+
+    def test_assert_matches(self):
+        request = OpQuery({'x': 17}, flags=QUERY_FLAGS['SlaveOkay'])
+        request.assert_matches(request)
+
+        with self.assertRaises(AssertionError):
+            request.assert_matches(Command('foo'))
 
 
 class TestLegacyWrites(unittest.TestCase):
