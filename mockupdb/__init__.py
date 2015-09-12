@@ -1118,8 +1118,9 @@ class MockupDB(object):
         # List of (request_matcher, args, kwargs), where args and kwargs are
         # like those sent to request.reply().
         self._autoresponders = []
+
         if auto_ismaster is True:
-            self.autoresponds(Command('ismaster'))
+            self.autoresponds(Command('ismaster'), {'ismaster': True})
         elif auto_ismaster:
             self.autoresponds(Command('ismaster'), auto_ismaster)
 
