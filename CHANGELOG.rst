@@ -3,6 +3,11 @@
 Changelog
 =========
 
+1.1.0 (2016-02-11)
+------------------
+
+Add cursor_id property to OpGetMore, and ssl parameter to interactive_server.
+
 1.0.3 (2015-09-12)
 ------------------
 
