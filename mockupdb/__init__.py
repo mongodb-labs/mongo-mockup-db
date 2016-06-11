@@ -1821,6 +1821,7 @@ def interactive_server(port=27017, verbose=True, all_ok=True, name='MockupDB'):
     server.autoresponds('whatsmyuri', you='localhost:12345')
     server.autoresponds({'getLog': 'startupWarnings'},
                         log=['hello from %s!' % name])
-    server.autoresponds('buildinfo', version='MockupDB ' + __version__)
+    server.autoresponds(Command('buildInfo'), version='MockupDB ' + __version__)
+    server.autoresponds(Command('listCollections'))
     server.autoresponds('replSetGetStatus', ok=0)
     return server
