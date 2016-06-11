@@ -676,7 +676,7 @@ class OpGetMore(Request):
         namespace, pos = _get_c_string(msg, 4)
         num_to_return, = _UNPACK_INT(msg[pos:pos + 4])
         pos += 4
-        cursor_id = _UNPACK_LONG(msg[pos:pos + 8])
+        cursor_id, = _UNPACK_LONG(msg[pos:pos + 8])
         return OpGetMore(namespace=namespace, flags=flags, client=client,
                          num_to_return=num_to_return, cursor_id=cursor_id,
                          request_id=request_id, server=server)
@@ -690,6 +690,11 @@ class OpGetMore(Request):
     def num_to_return(self):
         """The client message's numToReturn field."""
         return self._num_to_return
+
+    @property
+    def cursor_id(self):
+        """The client message's cursorId field."""
+        return self._cursor_id
 
 
 class OpKillCursors(Request):
