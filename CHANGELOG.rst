@@ -3,6 +3,12 @@
 Changelog
 =========
 
+1.1.1 (2016-08-01)
+------------------
+
+Don't use "client" as a keyword arg for ``Request``, it conflicts with the
+actual "client" field in drivers' new handshake protocol.
+
 1.1.0 (2016-02-11)
 ------------------
 
