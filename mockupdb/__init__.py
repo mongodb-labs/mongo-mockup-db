@@ -343,9 +343,9 @@ class Request(object):
     def __init__(self, *args, **kwargs):
         self._flags = kwargs.pop('flags', None)
         self._namespace = kwargs.pop('namespace', None)
-        self._client = kwargs.pop('client', None)
+        self._client = kwargs.pop('_client', None)
         self._request_id = kwargs.pop('request_id', None)
-        self._server = kwargs.pop('server', None)
+        self._server = kwargs.pop('_server', None)
         self._verbose = self._server and self._server.verbose
         self._server_port = kwargs.pop('server_port', None)
         self._docs = make_docs(*args, **kwargs)
@@ -553,7 +553,8 @@ class OpQuery(Request):
             assert len(docs) == 1
             command_ns = namespace[:-len('.$cmd')]
             return Command(docs, namespace=command_ns, flags=flags,
-                           client=client, request_id=request_id, server=server)
+                           _client=client, request_id=request_id,
+                           _server=server)
         else:
             if len(docs) == 1:
                 fields = None
@@ -562,8 +563,8 @@ class OpQuery(Request):
                 fields = docs[1]
             return OpQuery(docs[0], fields=fields, namespace=namespace,
                            flags=flags, num_to_skip=num_to_skip,
-                           num_to_return=num_to_return, client=client,
-                           request_id=request_id, server=server)
+                           num_to_return=num_to_return, _client=client,
+                           request_id=request_id, _server=server)
 
     def __init__(self, *args, **kwargs):
         fields = kwargs.pop('fields', None)
@@ -677,9 +678,9 @@ class OpGetMore(Request):
         num_to_return, = _UNPACK_INT(msg[pos:pos + 4])
         pos += 4
         cursor_id, = _UNPACK_LONG(msg[pos:pos + 8])
-        return OpGetMore(namespace=namespace, flags=flags, client=client,
+        return OpGetMore(namespace=namespace, flags=flags, _client=client,
                          num_to_return=num_to_return, cursor_id=cursor_id,
-                         request_id=request_id, server=server)
+                         request_id=request_id, _server=server)
 
     def __init__(self, **kwargs):
         self._num_to_return = kwargs.pop('num_to_return', None)
@@ -713,8 +714,8 @@ class OpKillCursors(Request):
         for _ in range(num_of_cursor_ids):
             cursor_ids.append(_UNPACK_INT(msg[pos:pos+4])[0])
             pos += 4
-        return OpKillCursors(client=client, cursor_ids=cursor_ids,
-                             server=server)
+        return OpKillCursors(_client=client, cursor_ids=cursor_ids,
+                             _server=server)
 
     def __init__(self, **kwargs):
         self._cursor_ids = kwargs.pop('cursor_ids', None)
@@ -748,8 +749,8 @@ class OpInsert(_LegacyWrite):
         flags, = _UNPACK_INT(msg[:4])
         namespace, pos = _get_c_string(msg, 4)
         docs = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
-        return cls(*docs, namespace=namespace, flags=flags, client=client,
-                   request_id=request_id, server=server)
+        return cls(*docs, namespace=namespace, flags=flags, _client=client,
+                   request_id=request_id, _server=server)
 
 
 class OpUpdate(_LegacyWrite):
@@ -767,9 +768,9 @@ class OpUpdate(_LegacyWrite):
         # First 4 bytes of OP_UPDATE are "reserved".
         namespace, pos = _get_c_string(msg, 4)
         flags, = _UNPACK_INT(msg[pos:pos + 4])
-        docs = _bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
-        return cls(*docs, namespace=namespace, flags=flags, client=client,
-                   request_id=request_id, server=server)
+        docs = _bson.decode_all(msg[pos + 4:], CODEC_OPTIONS)
+        return cls(*docs, namespace=namespace, flags=flags, _client=client,
+                   request_id=request_id, _server=server)
 
 
 class OpDelete(_LegacyWrite):
@@ -787,9 +788,9 @@ class OpDelete(_LegacyWrite):
         # First 4 bytes of OP_DELETE are "reserved".
         namespace, pos = _get_c_string(msg, 4)
         flags, = _UNPACK_INT(msg[pos:pos + 4])
-        docs = _bson.decode_all(msg[pos+4:], CODEC_OPTIONS)
-        return cls(*docs, namespace=namespace, flags=flags, client=client,
-                   request_id=request_id, server=server)
+        docs = _bson.decode_all(msg[pos + 4:], CODEC_OPTIONS)
+        return cls(*docs, namespace=namespace, flags=flags, _client=client,
+                   request_id=request_id, _server=server)
 
 
 class OpReply(object):
