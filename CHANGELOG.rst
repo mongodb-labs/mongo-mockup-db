@@ -3,6 +3,12 @@
 Changelog
 =========
 
+1.1.2 (2016-08-23)
+------------------
+
+Properly detect closed sockets so ``MockupDB.stop()`` doesn't take 10 seconds
+per connection. Thanks to Sean Purcell.
+
 1.1.1 (2016-08-01)
 ------------------
 
