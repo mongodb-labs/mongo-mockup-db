@@ -1577,7 +1577,7 @@ def mock_server_receive(sock, length):
     """Receive `length` bytes from a socket object."""
     msg = b''
     while length:
-        if select.select([sock.fileno()], [], [], 1):
+        if select.select([sock.fileno()], [], [], 1)[0]:
             try:
                 chunk = sock.recv(length)
                 if chunk == b'':
