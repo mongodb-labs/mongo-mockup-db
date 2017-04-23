@@ -1576,12 +1576,10 @@ def mock_server_receive_request(client, server):
 def mock_server_receive(sock, length):
     """Receive `length` bytes from a socket object."""
     msg = b''
-    print('receiving %d' % length)
     while length:
         if select.select([sock.fileno()], [], [], 1)[0]:
             try:
                 chunk = sock.recv(length)
-                print(chunk)
                 if chunk == b'':
                     raise socket.error(errno.ECONNRESET, 'closed')
 
