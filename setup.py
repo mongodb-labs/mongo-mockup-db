@@ -24,7 +24,7 @@ if sys.version_info[:2] == (2, 6):
 
 setup(
     name='mockupdb',
-    version='1.2.0-dev0',
+    version='1.1.3',
     description="MongoDB Wire Protocol server library",
     long_description=readme + '\n\n' + changelog,
     author="A. Jesse Jiryu Davis",

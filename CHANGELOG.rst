@@ -3,6 +3,12 @@
 Changelog
 =========
 
+1.1.3 (2017-04-23)
+------------------
+
+Avoid rare RuntimeError in close(), if a client thread shuts down a socket as
+MockupDB iterates its list of sockets.
+
 1.1.2 (2016-08-23)
 ------------------
 
