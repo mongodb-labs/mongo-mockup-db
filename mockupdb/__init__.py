@@ -1152,7 +1152,7 @@ class MockupDB(object):
         threads = [self._accept_thread]
         threads.extend(self._server_threads)
         self._listening_sock.close()
-        for sock in self._server_socks:
+        for sock in list(self._server_socks):
             sock.close()
 
         with self._unlock():
@@ -1576,10 +1576,12 @@ def mock_server_receive_request(client, server):
 def mock_server_receive(sock, length):
     """Receive `length` bytes from a socket object."""
     msg = b''
+    print('receiving %d' % length)
     while length:
         if select.select([sock.fileno()], [], [], 1)[0]:
             try:
                 chunk = sock.recv(length)
+                print(chunk)
                 if chunk == b'':
                     raise socket.error(errno.ECONNRESET, 'closed')
 
