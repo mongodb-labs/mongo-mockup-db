@@ -141,14 +141,12 @@ class TestLegacyWrites(unittest.TestCase):
         self.server.run()
         self.addCleanup(self.server.stop)
         self.client = MongoClient(self.server.uri)
-        self.collection = self.client.db.collection
+        self.collection = self.client.db.get_collection(
+            'collection', write_concern=WriteConcern(w=0))
 
     def test_insert_one(self):
-        with going(self.collection.insert_one, {'_id': 1}) as future:
+        with going(self.collection.insert_one, {'_id': 1}):
             self.server.receives(OpInsert({'_id': 1}, flags=0))
-            self.server.receives(Command('getlasterror')).replies_to_gle()
-
-        self.assertEqual(1, future().inserted_id)
 
     def test_insert_many(self):
         collection = self.collection.with_options(
@@ -156,47 +154,29 @@ class TestLegacyWrites(unittest.TestCase):
 
         flags = INSERT_FLAGS['ContinueOnError']
         docs = [{'_id': 1}, {'_id': 2}]
-        with going(collection.insert_many, docs, ordered=False) as future:
+        with going(collection.insert_many, docs, ordered=False):
             self.server.receives(OpInsert(docs, flags=flags))
 
-        self.assertEqual([1, 2], future().inserted_ids)
-
     def test_replace_one(self):
-        with going(self.collection.replace_one, {}, {}) as future:
+        with going(self.collection.replace_one, {}, {}):
             self.server.receives(OpUpdate({}, {}, flags=0))
-            request = self.server.receives(Command('getlasterror'))
-            request.replies_to_gle(upserted=1)
-
-        self.assertEqual(1, future().upserted_id)
 
     def test_update_many(self):
         flags = UPDATE_FLAGS['MultiUpdate']
-        with going(self.collection.update_many, {}, {'$unset': 'a'}) as future:
+        with going(self.collection.update_many, {}, {'$unset': 'a'}):
             update = self.server.receives(OpUpdate({}, {}, flags=flags))
             self.assertEqual(2, update.flags)
-            gle = self.server.receives(Command('getlasterror'))
-            gle.replies_to_gle(upserted=1)
-
-        self.assertEqual(1, future().upserted_id)
 
     def test_delete_one(self):
         flags = DELETE_FLAGS['SingleRemove']
-        with going(self.collection.delete_one, {}) as future:
+        with going(self.collection.delete_one, {}):
             delete = self.server.receives(OpDelete({}, flags=flags))
             self.assertEqual(1, delete.flags)
-            gle = self.server.receives(Command('getlasterror'))
-            gle.replies_to_gle(n=1)
-
-        self.assertEqual(1, future().deleted_count)
 
     def test_delete_many(self):
-        with going(self.collection.delete_many, {}) as future:
+        with going(self.collection.delete_many, {}):
             delete = self.server.receives(OpDelete({}, flags=0))
             self.assertEqual(0, delete.flags)
-            gle = self.server.receives(Command('getlasterror'))
-            gle.replies_to_gle(n=2)
-
-        self.assertEqual(2, future().deleted_count)
 
 
 class TestMatcher(unittest.TestCase):
@@ -274,6 +254,24 @@ class TestMockupDB(unittest.TestCase):
                 j += 1
                 if j == 3:
                     break
+
+    def test_default_wire_version(self):
+        server = MockupDB(auto_ismaster=True)
+        server.run()
+        self.addCleanup(server.stop)
+        ismaster = MongoClient(server.uri).admin.command('isMaster')
+        self.assertEqual(ismaster['minWireVersion'], 2)
+        self.assertEqual(ismaster['maxWireVersion'], 6)
+
+    def test_wire_version(self):
+        server = MockupDB(auto_ismaster=True,
+                          min_wire_version=1,
+                          max_wire_version=42)
+        server.run()
+        self.addCleanup(server.stop)
+        ismaster = MongoClient(server.uri).admin.command('isMaster')
+        self.assertEqual(ismaster['minWireVersion'], 1)
+        self.assertEqual(ismaster['maxWireVersion'], 42)
 
 
 class TestResponse(unittest.TestCase):

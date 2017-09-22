@@ -36,7 +36,7 @@ from __future__ import print_function
 
 __author__ = 'A. Jesse Jiryu Davis'
 __email__ = 'jesse@mongodb.com'
-__version__ = '1.2.dev0'
+__version__ = '1.2.0'
 
 import collections
 import contextlib
@@ -1098,10 +1098,14 @@ class MockupDB(object):
       - `auto_ismaster`: pass ``True`` to autorespond ``{'ok': 1}`` to
         ismaster requests, or pass a dict or `OpReply`.
       - `ssl`: pass ``True`` to require SSL.
+      - `min_wire_version`: the minWireVersion to include in ismaster responses
+        if `auto_ismaster` is True, default 2.
+      - `max_wire_version`: the maxWireVersion to include in ismaster responses
+        if `auto_ismaster` is True, default 6.
     """
     def __init__(self, port=None, verbose=False,
                  request_timeout=10, auto_ismaster=None,
-                 ssl=False):
+                 ssl=False, min_wire_version=2, max_wire_version=6):
         self._address = ('localhost', port)
         self._verbose = verbose
         self._label = None
@@ -1126,7 +1130,10 @@ class MockupDB(object):
         self._autoresponders = []
 
         if auto_ismaster is True:
-            self.autoresponds(Command('ismaster'), {'ismaster': True})
+            self.autoresponds(Command('ismaster'),
+                              {'ismaster': True,
+                               'minWireVersion': min_wire_version,
+                               'maxWireVersion': max_wire_version})
         elif auto_ismaster:
             self.autoresponds(Command('ismaster'), auto_ismaster)
 
