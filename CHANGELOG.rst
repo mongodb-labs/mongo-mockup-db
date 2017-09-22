@@ -3,6 +3,11 @@
 Changelog
 =========
 
+1.2.0 (2017-09-22)
+------------------
+
+Update for MongoDB 3.6: report minWireVersion 2 and maxWireVersion 6 by default.
+
 1.1.3 (2017-04-23)
 ------------------
 
