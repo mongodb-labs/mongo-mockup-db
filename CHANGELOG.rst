@@ -3,8 +3,8 @@
 Changelog
 =========
 
-Next Release
-------------
+1.2.1 (2017-12-06)
+------------------
 
 Set minWireVersion to 0, not to 2. I had been wrong about MongoDB 3.6's wire
 version range: it's actually 0 to 6. MockupDB now reports the same wire version
