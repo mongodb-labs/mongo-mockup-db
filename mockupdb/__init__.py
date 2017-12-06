@@ -1099,13 +1099,13 @@ class MockupDB(object):
         ismaster requests, or pass a dict or `OpReply`.
       - `ssl`: pass ``True`` to require SSL.
       - `min_wire_version`: the minWireVersion to include in ismaster responses
-        if `auto_ismaster` is True, default 2.
+        if `auto_ismaster` is True, default 0.
       - `max_wire_version`: the maxWireVersion to include in ismaster responses
         if `auto_ismaster` is True, default 6.
     """
     def __init__(self, port=None, verbose=False,
                  request_timeout=10, auto_ismaster=None,
-                 ssl=False, min_wire_version=2, max_wire_version=6):
+                 ssl=False, min_wire_version=0, max_wire_version=6):
         self._address = ('localhost', port)
         self._verbose = verbose
         self._label = None

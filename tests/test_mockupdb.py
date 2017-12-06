@@ -260,7 +260,7 @@ class TestMockupDB(unittest.TestCase):
         server.run()
         self.addCleanup(server.stop)
         ismaster = MongoClient(server.uri).admin.command('isMaster')
-        self.assertEqual(ismaster['minWireVersion'], 2)
+        self.assertEqual(ismaster['minWireVersion'], 0)
         self.assertEqual(ismaster['maxWireVersion'], 6)
 
     def test_wire_version(self):
