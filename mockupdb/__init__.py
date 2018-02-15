@@ -1501,7 +1501,7 @@ class MockupDB(object):
                 else:
                     raise
             except AssertionError:
-                # We got bad data. Bail to avoid leaking resources
+                traceback.print_exc()
                 break
 
         self._log('disconnected: %s:%d' % client_addr)
