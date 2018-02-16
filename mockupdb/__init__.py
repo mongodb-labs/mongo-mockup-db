@@ -1462,7 +1462,8 @@ class MockupDB(object):
                     server_thread.daemon = True
                     server_thread.start()
             except socket.error as error:
-                if error.errno not in (errno.EAGAIN, errno.EBADF):
+                if error.errno not in (
+                        errno.EAGAIN, errno.EBADF, errno.EWOULDBLOCK):
                     raise
             except select.error as error:
                 if error.args[0] == errno.EBADF:
