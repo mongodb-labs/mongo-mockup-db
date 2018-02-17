@@ -4,6 +4,7 @@
 """Test MockupDB."""
 
 import contextlib
+import os
 import ssl
 import sys
 
@@ -206,11 +207,11 @@ class TestAutoresponds(unittest.TestCase):
         future()
 
     def test_autoresponds_case_insensitive(self):
-        server = MockupDB()
+        server = MockupDB(auto_ismaster=True)
         # Little M. Note this is only case-insensitive because it's a Command.
-        server.autoresponds(Command('ismaster'), foo='bar')
+        server.autoresponds(Command('fooBar'), foo='bar')
         server.run()
-        response = MongoClient(server.uri).admin.command('isMaster')  # Big M.
+        response = MongoClient(server.uri).admin.command('Foobar')
         self.assertEqual('bar', response['foo'])
 
 
