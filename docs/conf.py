@@ -49,8 +49,8 @@ extensions = [
 ]
 
 intersphinx_mapping = {
-    'python': ('http://python.readthedocs.org/', None),
-    'pymongo': ('http://api.mongodb.org/python/current/', None),
+    'python': ('https://docs.python.org/3/', None),
+    'pymongo': ('http://api.mongodb.com/python/current/', None),
 }
 
 primary_domain = 'py'
