@@ -38,6 +38,7 @@ __author__ = 'A. Jesse Jiryu Davis'
 __email__ = 'jesse@mongodb.com'
 __version__ = '1.3.0.dev0'
 
+import atexit
 import collections
 import contextlib
 import errno
@@ -1081,6 +1082,24 @@ class _AutoResponder(object):
             self._matcher, self._args, self._kwargs)
 
 
+_shutting_down = False
+_global_threads = weakref.WeakKeyDictionary()
+
+
+def _shut_down(threads):
+    global _shutting_down
+    _shutting_down = True
+
+    for t in threads:
+        try:
+            t.join(10)
+        except:
+            pass
+
+
+atexit.register(_shut_down, _global_threads)
+
+
 class MockupDB(object):
     """A simulated mongod or mongos.
 
@@ -1476,7 +1495,7 @@ class MockupDB(object):
     @_synchronized
     def _server_loop(self, client, client_addr):
         """Read requests from one client socket, 'client'."""
-        while not self._stopped:
+        while not self._stopped and not _shutting_down:
             try:
                 with self._unlock():
                     request = mock_server_receive_request(client, self)
