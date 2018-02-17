@@ -3,6 +3,13 @@
 Changelog
 =========
 
+1.3.0 (2018-02-16)
+------------------
+
+Support Windows. Log a traceback if a bad client request causes an assert. Fix
+SSL. Make errors less likely on shutdown. Enable testing on Travis and Appveyor.
+Fix doctests for modern MongoDB protocol.
+
 1.2.1 (2017-12-06)
 ------------------
 
