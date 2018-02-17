@@ -1449,6 +1449,7 @@ class MockupDB(object):
                 # Wait a short time to accept.
                 if select.select([self._listening_sock.fileno()], [], [], 1):
                     client, client_addr = self._listening_sock.accept()
+                    client.setblocking(True)
                     self._log('connection from %s:%s' % client_addr)
                     server_thread = threading.Thread(
                         target=functools.partial(
@@ -1584,22 +1585,30 @@ def mock_server_receive_request(client, server):
     return OPCODES[opcode].unpack(msg_bytes, client, server, request_id)
 
 
+def _errno_from_exception(exc):
+    if hasattr(exc, 'errno'):
+        return exc.errno
+    elif exc.args:
+        return exc.args[0]
+    else:
+        return None
+
+
 def mock_server_receive(sock, length):
     """Receive `length` bytes from a socket object."""
     msg = b''
     while length:
-        if select.select([sock.fileno()], [], [], 1)[0]:
-            try:
-                chunk = sock.recv(length)
-                if chunk == b'':
-                    raise socket.error(errno.ECONNRESET, 'closed')
+        try:
+            chunk = sock.recv(length)
+            if chunk == b'':
+                raise socket.error(errno.ECONNRESET, 'closed')
 
-                length -= len(chunk)
-                msg += chunk
-            except socket.error as error:
-                if error.errno == errno.EAGAIN:
-                    continue
-                raise
+            length -= len(chunk)
+            msg += chunk
+        except socket.error as error:
+            if _errno_from_exception(error) == errno.EINTR:
+                continue
+            raise
 
     return msg
 
