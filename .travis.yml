@@ -12,8 +12,6 @@ matrix:
       env: TOXENV=py27-test
     - python: 3.4
       env: TOXENV=py34-test
-    - python: 2.7
-      env: TOXENV=py27-doctest
     - python: 3.4
       env: TOXENV=py34-doctest
 
