@@ -31,12 +31,12 @@ the server responds. MockupDB receives the "ismaster" command but does not
 respond until you tell it to:
 
    >>> request = server.receives()
-   >>> request
-   Command({"ismaster": 1}, namespace="admin")
+   >>> request.command_name
+   'ismaster'
 
 We respond:
 
-   >>> request.replies({'ok': 1})
+   >>> request.replies({'ok': 1, 'maxWireVersion': 6})
    True
 
 In fact this is the default response, so the next time the client calls
@@ -46,9 +46,8 @@ The `~MockupDB.receives` call blocks until it receives a request from the
 client. Responding to each "ismaster" call is tiresome, so tell the client
 to send the default response to all ismaster calls:
 
-   >>> server.autoresponds('ismaster')
-   _AutoResponder(Matcher(Request({"ismaster": 1})), (), {})
-   >>> client.admin.command('ismaster') == {'ok': 1}
+   >>> responder = server.autoresponds('ismaster', maxWireVersion=6)
+   >>> client.admin.command('ismaster') == {'ok': 1, 'maxWireVersion': 6}
    True
 
 A call to `~MockupDB.receives` now blocks waiting for some request that
@@ -85,18 +84,16 @@ Pass a method and its arguments to the `go` function, the same as to
 on a thread and returns a handle to its future outcome. Meanwhile, wait for the
 client's request to arrive on the main thread:
 
-   >>> server.receives()
-   OpInsert({"_id": 2}, namespace="db.coll")
-   >>> gle = server.receives()
-   >>> gle
-   Command({"getlasterror": 1}, namespace="db")
+   >>> cmd = server.receives()
+   >>> cmd
+   Command({"insert": "coll", "ordered": true, "documents": [{"_id": 2}]}, namespace="db")
 
-You could respond with ``{'ok': 1, 'err': None}``, or for convenience:
+Respond thus:
 
-   >>> gle.replies_to_gle()
+   >>> cmd.ok()
    True
 
-The server's getlasterror response unblocks the client, so its future
+The server's response unblocks the client, so its future
 contains the return value of `~pymongo.collection.Collection.insert_one`,
 which is an `~pymongo.results.InsertOneResult`:
 
@@ -110,9 +107,7 @@ If you don't need the future's return value, you can express this more tersely
 with `going`:
 
    >>> with going(collection.insert_one, {'_id': 3}):
-   ...     server.receives()
-   ...     server.receives().replies_to_gle()
-   OpInsert({"_id": 3}, namespace="db.coll")
+   ...     server.receives().ok()
    True
 
 Reply To Write Commands
@@ -122,7 +117,7 @@ MockupDB runs the most recently added autoresponders first, and uses the
 first that matches. Override the previous "ismaster" responder to upgrade
 the wire protocol:
 
-   >>> responder = server.autoresponds('ismaster', maxWireVersion=3)
+   >>> responder = server.autoresponds('ismaster', maxWireVersion=6)
 
 Test that PyMongo now uses a write command instead of a legacy insert:
 
@@ -189,27 +184,28 @@ little loop:
    ...     try:
    ...         while server.running:
    ...             # Match queries most restrictive first.
-   ...             if server.got(OpQuery, {'a': {'$gt': 1}}):
-   ...                 server.reply({'a': 2})
+   ...             if server.got(Command('find', 'coll', filter={'a': {'$gt': 1}})):
+   ...                 server.reply(cursor={'id': 0, 'firstBatch':[{'a': 2}]})
    ...             elif server.got('break'):
    ...                 server.ok()
    ...                 break
-   ...             elif server.got(OpQuery):
-   ...                 server.reply({'a': 1}, {'a': 2})
+   ...             elif server.got(Command('find', 'coll')):
+   ...                 server.reply(
+   ...                     cursor={'id': 0, 'firstBatch':[{'a': 1}, {'a': 2}]})
    ...             else:
-   ...                 server.command_err('unrecognized request')
+   ...                 server.command_err(errmsg='unrecognized request')
    ...     except:
    ...         traceback.print_exc()
    ...         raise
    ...
    >>> future = go(loop)
    >>>
-   >>> list(client.db.coll.find()) == [{'a': 1}, {'a': 2}]
-   True
-   >>> list(client.db.coll.find({'a': {'$gt': 1}})) == [{'a': 2}]
-   True
-   >>> client.db.command('break') == {'ok': 1}
-   True
+   >>> list(client.db.coll.find())
+   [{'a': 1}, {'a': 2}]
+   >>> list(client.db.coll.find({'a': {'$gt': 1}}))
+   [{'a': 2}]
+   >>> client.db.command('break')
+   {'ok': 1}
    >>> future()
 
 You can even implement the "shutdown" command:
@@ -239,7 +235,7 @@ To show off a difficult test that MockupDB makes easy, assert that
 PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
 
    >>> server = MockupDB()
-   >>> responder = server.autoresponds('ismaster', maxWireVersion=3)
+   >>> responder = server.autoresponds('ismaster', maxWireVersion=6)
    >>> port = server.run()
    >>>
    >>> # Specify w=1. This is distinct from the default write concern.
@@ -268,10 +264,11 @@ all take finite time.
 
 To abbreviate the wait, pass a timeout in seconds to `~MockupDB.receives`:
 
-   >>> server.receives(timeout=0.1)
-    Traceback (most recent call last):
-      ...
-    AssertionError: expected to receive Request(), got nothing
+   >>> try:
+   ...     server.receives(timeout=0.1)
+   ... except AssertionError as err:
+   ...     print("Error: %s" % err)
+   Error: expected to receive Request(), got nothing
 
 Test Cursor Behavior
 --------------------
@@ -280,84 +277,48 @@ Test what happens when a query fails:
 
    >>> cursor = collection.find().batch_size(1)
    >>> future = go(next, cursor)
-   >>> server.receives(OpQuery).fail()
+   >>> server.receives(Command('find', 'coll')).fail()
    True
    >>> future()
    Traceback (most recent call last):
      ...
    OperationFailure: database error: MockupDB query failure
 
-OP_KILL_CURSORS has historically been hard to test. On a single
-server you could count cursors in `serverStatus`_ to know when one dies.
-But in a replica set, the count is confounded by replication cursors coming
-and going, and it is precisely in replica sets that it is crucial to verify
-PyMongo sends OP_KILLCURSORS to the right server.
-
-You can check the cursor is closed by trying getMores on it until the
-server returns CursorNotFound. However, if you are in the midst of a
-getMore when the asynchronous OP_KILL_CURSORS arrives, the server
-logs "Assertion: 16089:Cannot kill active cursor" and leaves it alive. By
-sleeping a long time between getMores the test reduces races, but does not
-eliminate them, and at the cost of sluggishness.
-
-But with MockupDB you can test OP_KILL_CURSORS easily and reliably.
-We start a cursor with its first batch:
-
-   >>> cursor = collection.find().batch_size(1)
-   >>> future = go(next, cursor)
-   >>> reply = OpReply({'first': 'doc'}, cursor_id=123)
-   >>> server.receives(OpQuery).replies(reply)
-   True
-   >>> future() == {'first': 'doc'}
-   True
-   >>> cursor.alive
-   True
-
-The cursor should send OP_KILL_CURSORS if it is garbage-collected:
-
-   >>> del cursor
-   >>> import gc
-   >>> _ = gc.collect()
-   >>> server.receives(OpKillCursors, cursor_ids=[123])
-   OpKillCursors([123])
-
 You can simulate normal querying, too:
 
-   >>> cursor = collection.find().batch_size(1)
+   >>> cursor = collection.find().batch_size(2)
    >>> future = go(list, cursor)
-   >>> documents = [{'_id': 1}, {'foo': 'bar'}, {'beauty': True}]
-   >>> server.receives(OpQuery).replies(OpReply(documents[0], cursor_id=123))
+   >>> documents = [{'_id': 1}, {'x': 2}, {'foo': 'bar'}, {'beauty': True}]
+   >>> request = server.receives(Command('find', 'coll'))
+   >>> n = request['batchSize']
+   >>> request.replies(cursor={'id': 123, 'firstBatch': documents[:n]})
    True
-   >>> del documents[0]
-   >>> num_sent = 1
-   >>> while documents:
-   ...     getmore = server.receives(OpGetMore)
-   ...     num_to_return = getmore.num_to_return
-   ...     print('num_to_return %s' % num_to_return)
-   ...     batch = documents[:num_to_return]
-   ...     del documents[:num_to_return]
-   ...     if documents:
-   ...         cursor_id = 123
-   ...     else:
-   ...         cursor_id = 0
-   ...     reply = OpReply(batch,
-   ...                     cursor_id=cursor_id,
-   ...                     starting_from=num_sent)
-   ...     getmore.replies(reply)
-   ...     num_sent += len(batch)
-   ...
-   num_to_return 2
+   >>> while True:
+   ...    getmore = server.receives(Command('getMore', 123))
+   ...    n = getmore['batchSize']
+   ...    if documents:
+   ...        cursor_id = 123
+   ...    else:
+   ...        cursor_id = 0
+   ...    getmore.ok(cursor={'id': cursor_id, 'nextBatch': documents[:n]})
+   ...    print('returned %d' % len(documents[:n]))
+   ...    del documents[:n]
+   ...    if cursor_id == 0:
+   ...        break
    True
-
-Observe a quirk in the wire protocol: MongoDB treats an initial query
-with nToReturn of 1 the same as -1 and closes the cursor after the first
-batch. To work around this, PyMongo overrides a batch size of 1 and asks
-for 2.
-
-At any rate, the loop completes and the cursor receives all documents:
-
-   >>> future() == [{'_id': 1}, {'foo': 'bar'}, {'beauty': True}]
+   returned 2
    True
+   returned 2
+   True
+   returned 0
+
+The loop receives three getMore commands and replies three times (``True`` is
+printed each time we call ``getmore.ok``), sending a cursor id of 0 on the last
+iteration to tell PyMongo that the cursor is finished. The cursor receives all
+documents:
+
+   >>> future()
+   [{'_id': 1}, {'x': 2}, {'_id': 1}, {'x': 2}, {'foo': 'bar'}, {'beauty': True}]
 
 But this is just a parlor trick. Let us test something serious.
 
@@ -371,7 +332,8 @@ To test PyMongo's server monitor, make the server a secondary:
    ...     'ismaster': False,
    ...     'secondary': True,
    ...     'setName': 'rs',
-   ...     'hosts': hosts})
+   ...     'hosts': hosts,
+   ...     'maxWireVersion': 6})
    >>> responder = server.autoresponds('ismaster', secondary_reply)
 
 Connect to the replica set:
@@ -391,7 +353,8 @@ Add a primary to the host list:
    ...     'ismaster': True,
    ...     'secondary': False,
    ...     'setName': 'rs',
-   ...     'hosts': hosts})
+   ...     'hosts': hosts,
+   ...     'maxWireVersion': 6})
    >>> responder = primary.autoresponds('ismaster', primary_reply)
 
 Client discovers it quickly if there's a pending operation:

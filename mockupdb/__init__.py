@@ -1287,8 +1287,8 @@ class MockupDB(object):
         >>>
         >>> from pymongo import MongoClient
         >>> client = MongoClient(s.uri)
-        >>> responder = s.autoresponds('ismaster')
-        >>> client.admin.command('ismaster') == {'ok': 1}
+        >>> responder = s.autoresponds('ismaster', maxWireVersion=6)
+        >>> client.admin.command('ismaster') == {'ok': 1, 'maxWireVersion': 6}
         True
 
         The remaining arguments are a `reply spec`_:
@@ -1298,11 +1298,12 @@ class MockupDB(object):
         Traceback (most recent call last):
         ...
         OperationFailure: command SON([('bar', 1)]) on namespace db.$cmd failed: err
-        >>> responder = s.autoresponds(OpQuery(namespace='db.collection'),
-        ...                            [{'_id': 1}, {'_id': 2}])
+        >>> responder = s.autoresponds(Command('find', 'collection'),
+        ...                            {'cursor': {'id': 0, 'firstBatch': [{'_id': 1}, {'_id': 2}]}})
         >>> list(client.db.collection.find()) == [{'_id': 1}, {'_id': 2}]
         True
-        >>> responder = s.autoresponds(OpQuery, {'a': 1}, {'a': 2})
+        >>> responder = s.autoresponds(Command('find', 'collection'),
+        ...                            {'cursor': {'id': 0, 'firstBatch': [{'a': 1}, {'a': 2}]}})
         >>> list(client.db.collection.find()) == [{'a': 1}, {'a': 2}]
         True
 
