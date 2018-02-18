@@ -8,7 +8,7 @@ Changelog
 
 Support Windows. Log a traceback if a bad client request causes an assert. Fix
 SSL. Make errors less likely on shutdown. Enable testing on Travis and Appveyor.
-Fix doctests for modern MongoDB protocol.
+Fix doctests and interactive server for modern MongoDB protocol.
 
 1.2.1 (2017-12-06)
 ------------------
