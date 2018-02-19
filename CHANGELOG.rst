@@ -3,7 +3,7 @@
 Changelog
 =========
 
-1.3.0 (2018-02-16)
+1.3.0 (2018-02-19)
 ------------------
 
 Support Windows. Log a traceback if a bad client request causes an assert. Fix
