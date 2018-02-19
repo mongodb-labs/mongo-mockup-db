@@ -544,11 +544,6 @@ Client discovers it quickly if there's a pending operation:
    True
    True
 
-Test Server Selection
----------------------
-
-TODO.
-
 .. _PyMongo: https://pypi.python.org/pypi/pymongo/
 
 .. _MongoDB Wire Protocol: http://docs.mongodb.org/meta-driver/latest/legacy/mongodb-wire-protocol/
