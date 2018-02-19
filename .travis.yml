@@ -16,7 +16,7 @@ matrix:
       env: TOXENV=py34-doctest
 
 install:
-  - pip install -U tox pymongo
+  - pip install -U tox
 
 script:
   - tox
