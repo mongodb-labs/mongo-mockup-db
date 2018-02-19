@@ -18,7 +18,6 @@ Contents:
 .. toctree::
    :maxdepth: 1
 
-   readme
    installation
    tutorial
    reference
