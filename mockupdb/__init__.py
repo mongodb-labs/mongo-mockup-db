@@ -1179,7 +1179,15 @@ class MockupDB(object):
         threads.extend(self._server_threads)
         self._listening_sock.close()
         for sock in list(self._server_socks):
-            sock.close()
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except socket.error:
+                pass
+
+            try:
+                sock.close()
+            except socket.error:
+                pass
 
         with self._unlock():
             for thread in threads:
@@ -1464,7 +1472,7 @@ class MockupDB(object):
     def _accept_loop(self):
         """Accept client connections and spawn a thread for each."""
         self._listening_sock.setblocking(0)
-        while not self._stopped:
+        while not self._stopped and not _shutting_down:
             try:
                 # Wait a short time to accept.
                 if select.select([self._listening_sock.fileno()], [], [], 1):
@@ -1618,17 +1626,12 @@ def mock_server_receive(sock, length):
     """Receive `length` bytes from a socket object."""
     msg = b''
     while length:
-        try:
-            chunk = sock.recv(length)
-            if chunk == b'':
-                raise socket.error(errno.ECONNRESET, 'closed')
+        chunk = sock.recv(length)
+        if chunk == b'':
+            raise socket.error(errno.ECONNRESET, 'closed')
 
-            length -= len(chunk)
-            msg += chunk
-        except socket.error as error:
-            if _errno_from_exception(error) == errno.EINTR:
-                continue
-            raise
+        length -= len(chunk)
+        msg += chunk
 
     return msg
 
