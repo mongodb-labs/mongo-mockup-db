@@ -11,3 +11,4 @@ dist/
 *.egg-info
 .eggs
 docs/_build
+docs/doctest/
