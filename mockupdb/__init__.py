@@ -13,24 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Simulate a MongoDB server.
-
-Request Spec
-------------
-
-TODO
-
-Matcher Spec
-------------
-
-TODO
-
-Reply Spec
-----------
-
-TODO
-
-"""
+"""Simulate a MongoDB server, for use in unittests."""
 
 from __future__ import print_function
 
@@ -403,14 +386,17 @@ class Request(object):
         return self._server
 
     def assert_matches(self, *args, **kwargs):
-        """Assert this matches a `matcher spec`_  and return self."""
+        """Assert this matches a :ref:`message spec <message spec>`.
+
+        Returns self.
+        """
         matcher = make_matcher(*args, **kwargs)
         if not matcher.matches(self):
             raise AssertionError('%r does not match %r' % (self, matcher))
         return self
 
     def matches(self, *args, **kwargs):
-        """True if this matches a `matcher spec`_."""
+        """True if this matches a :ref:`message spec <message spec>`."""
         return make_matcher(*args, **kwargs).matches(self)
 
     def replies(self, *args, **kwargs):
@@ -857,6 +843,12 @@ class OpReply(object):
         rep = '%s(%s' % (self.__class__.__name__, self)
         if self._starting_from:
             rep += ', starting_from=%d' % self._starting_from
+
+        if self._flags:
+            rep += ', flags=' + '|'.join(
+                name for name, value in REPLY_FLAGS.items()
+                if self._flags & value)
+
         return rep + ')'
 
 
@@ -866,7 +858,7 @@ absent = {'absent': 1}
 class Matcher(object):
     """Matches a subset of `.Request` objects.
 
-    Initialized with a `request spec`_.
+    Initialized with a :ref:`message spec <message spec>`.
 
     Used by `~MockupDB.receives` to assert the client sent the expected request,
     and by `~MockupDB.got` to test if it did and return ``True`` or ``False``.
@@ -877,127 +869,9 @@ class Matcher(object):
         self._prototype = make_prototype_request(*args, **kwargs)
 
     def matches(self, *args, **kwargs):
-        """Take a `request spec`_ and return ``True`` or ``False``.
+        """Test if a request matches a :ref:`message spec <message spec>`.
 
-        .. request-matching rules::
-
-        The empty matcher matches anything:
-
-        >>> Matcher().matches({'a': 1})
-        True
-        >>> Matcher().matches({'a': 1}, {'a': 1})
-        True
-        >>> Matcher().matches('ismaster')
-        True
-
-        A matcher's document matches if its key-value pairs are a subset of the
-        request's:
-
-        >>> Matcher({'a': 1}).matches({'a': 1})
-        True
-        >>> Matcher({'a': 2}).matches({'a': 1})
-        False
-        >>> Matcher({'a': 1}).matches({'a': 1, 'b': 1})
-        True
-
-        Prohibit a field:
-
-        >>> Matcher({'field': absent})
-        Matcher(Request({"field": {"absent": 1}}))
-        >>> Matcher({'field': absent}).matches({'field': 1})
-        False
-        >>> Matcher({'field': absent}).matches({'otherField': 1})
-        True
-
-        Order matters if you use an OrderedDict:
-
-        >>> doc0 = OrderedDict([('a', 1), ('b', 1)])
-        >>> doc1 = OrderedDict([('b', 1), ('a', 1)])
-        >>> Matcher(doc0).matches(doc0)
-        True
-        >>> Matcher(doc0).matches(doc1)
-        False
-
-        The matcher must have the same number of documents as the request:
-
-        >>> Matcher().matches()
-        True
-        >>> Matcher([]).matches([])
-        True
-        >>> Matcher({'a': 2}).matches({'a': 1}, {'a': 1})
-        False
-
-        By default, it matches any opcode:
-
-        >>> m = Matcher()
-        >>> m.matches(OpQuery)
-        True
-        >>> m.matches(OpInsert)
-        True
-
-        You can specify what request opcode to match:
-
-        >>> m = Matcher(OpQuery)
-        >>> m.matches(OpInsert, {'_id': 1})
-        False
-        >>> m.matches(OpQuery, {'_id': 1})
-        True
-
-        Commands are queries on some database's "database.$cmd" namespace.
-        They are specially prohibited from matching regular queries:
-
-        >>> Matcher(OpQuery).matches(Command)
-        False
-        >>> Matcher(Command).matches(Command)
-        True
-        >>> Matcher(OpQuery).matches(OpQuery)
-        True
-        >>> Matcher(Command).matches(OpQuery)
-        False
-
-        The command name is matched case-insensitively:
-
-        >>> Matcher(Command('ismaster')).matches(Command('IsMaster'))
-        True
-
-        You can match properties specific to certain opcodes:
-
-        >>> m = Matcher(OpGetMore, num_to_return=3)
-        >>> m.matches(OpGetMore())
-        False
-        >>> m.matches(OpGetMore(num_to_return=2))
-        False
-        >>> m.matches(OpGetMore(num_to_return=3))
-        True
-        >>> m = Matcher(OpQuery(namespace='db.collection'))
-        >>> m.matches(OpQuery)
-        False
-        >>> m.matches(OpQuery(namespace='db.collection'))
-        True
-
-        It matches any wire protocol header bits you specify:
-
-        >>> m = Matcher(flags=QUERY_FLAGS['SlaveOkay'])
-        >>> m.matches(OpQuery({'_id': 1}))
-        False
-        >>> m.matches(OpQuery({'_id': 1}, flags=QUERY_FLAGS['SlaveOkay']))
-        True
-
-        If you match on flags, be careful to also match on opcode. For example,
-        if you simply check that the flag in bit position 0 is set:
-
-        >>> m = Matcher(flags=INSERT_FLAGS['ContinueOnError'])
-
-        ... you will match any request with that flag:
-
-        >>> m.matches(OpDelete, flags=DELETE_FLAGS['SingleRemove'])
-        True
-
-        So specify the opcode, too:
-
-        >>> m = Matcher(OpInsert, flags=INSERT_FLAGS['ContinueOnError'])
-        >>> m.matches(OpDelete, flags=DELETE_FLAGS['SingleRemove'])
-        False
+        Returns ``True`` or ``False``.
         """
         request = make_prototype_request(*args, **kwargs)
         if self._prototype.opcode not in (None, request.opcode):
@@ -1224,7 +1098,7 @@ class MockupDB(object):
     """Synonym for `receives`."""
 
     def got(self, *args, **kwargs):
-        """Does `.request` match the given `request spec`_?
+        """Does `.request` match the given :ref:`message spec <message spec>`?
 
         >>> s = MockupDB(auto_ismaster=True)
         >>> port = s.run()
@@ -1299,7 +1173,7 @@ class MockupDB(object):
         >>> client.admin.command('ismaster') == {'ok': 1, 'maxWireVersion': 6}
         True
 
-        The remaining arguments are a `reply spec`_:
+        The remaining arguments are a :ref:`message spec <message spec>`:
 
         >>> responder = s.autoresponds('bar', ok=0, errmsg='err')
         >>> client.db.command('bar')
@@ -1338,7 +1212,7 @@ class MockupDB(object):
         >>> client.db.command('baz') == {'ok': 1, 'key': 'value'}
         True
 
-        You can pass a request handler in place of the reply spec. Return
+        You can pass a request handler in place of the message spec. Return
         True if you handled the request:
 
         >>> responder = s.autoresponds('baz', lambda r: r.ok(a=2))
@@ -1694,7 +1568,7 @@ def make_docs(*args, **kwargs):
 
 
 def make_matcher(*args, **kwargs):
-    """Make a Matcher from a `request spec`_:
+    """Make a Matcher from a :ref:`message spec <message spec>`:
 
     >>> make_matcher()
     Matcher(Request())
@@ -1703,7 +1577,7 @@ def make_matcher(*args, **kwargs):
     >>> make_matcher({}, {'_id': 1})
     Matcher(Request({}, {"_id": 1}))
 
-    See more examples in tutorial.
+    See more examples in the tutorial section for :ref:`Message Specs`.
     """
     if args and isinstance(args[0], Matcher):
         if args[1:] or kwargs:
@@ -1728,19 +1602,6 @@ def make_prototype_request(*args, **kwargs):
 
 
 def make_reply(*args, **kwargs):
-    """Make an OpReply from a `reply spec`_:
-
-    >>> make_reply()
-    OpReply()
-    >>> make_reply(OpReply({'ok': 0}))
-    OpReply({"ok": 0})
-    >>> make_reply(0)
-    OpReply({"ok": 0})
-    >>> make_reply(key='value')
-    OpReply({"key": "value"})
-
-    See more examples in tutorial.
-    """
     # Error we might raise.
     if args and isinstance(args[0], OpReply):
         if args[1:] or kwargs:

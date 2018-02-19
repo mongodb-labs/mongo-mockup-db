@@ -4,20 +4,16 @@ Tutorial
 
 .. currentmodule:: mockupdb
 
-This is the primary documentation for the MockupDB project, and its primary
-test.
+This tutorial is the primary documentation for the MockupDB project.
 
-We assume some familiarity with PyMongo_ and the `MongoDB Wire Protocol`_.
+I assume some familiarity with PyMongo_ and the `MongoDB Wire Protocol`_.
 
 .. contents::
 
 Introduction
 ------------
 
-You can play with the mock server via ``python -m mockupdb`` and connect from
-the shell, but that is not tremendously interesting. Better to use it in tests.
-
-We begin by running a :class:`.MockupDB` and connecting to it with PyMongo's
+Begin by running a :class:`.MockupDB` and connecting to it with PyMongo's
 `~pymongo.mongo_client.MongoClient`:
 
    >>> from mockupdb import *
@@ -38,9 +34,6 @@ We respond:
 
    >>> request.replies({'ok': 1, 'maxWireVersion': 6})
    True
-
-In fact this is the default response, so the next time the client calls
-"ismaster" you could just say ``server.receives().replies()``.
 
 The `~MockupDB.receives` call blocks until it receives a request from the
 client. Responding to each "ismaster" call is tiresome, so tell the client
@@ -69,15 +62,18 @@ Send an unacknowledged OP_INSERT:
    >>> server.receives()
    OpInsert({"_id": 1}, namespace="db.coll")
 
-If PyMongo sends an unacknowledged OP_INSERT it does not block
-waiting for you to call `~Request.replies`, but for all other operations it
-does. Use `~test.utils.go` to defer PyMongo to a background thread so you
-can respond from the main thread:
+Reply To Write Commands
+-----------------------
 
-   >>> # Default write concern is acknowledged.
+If PyMongo sends an unacknowledged OP_INSERT it does not block
+waiting for you to call `~Request.replies`. However, for acknowledge operations
+it does block. Use `~test.utils.go` to defer PyMongo to a background thread so
+you can respond from the main thread:
+
    >>> collection = client.db.coll
    >>> from mockupdb import go
-   >>> future = go(collection.insert_one, {'_id': 2})
+   >>> # Default write concern is acknowledged.
+   >>> future = go(collection.insert_one, {'_id': 1})
 
 Pass a method and its arguments to the `go` function, the same as to
 `functools.partial`. It launches `~pymongo.collection.Collection.insert_one`
@@ -86,7 +82,12 @@ client's request to arrive on the main thread:
 
    >>> cmd = server.receives()
    >>> cmd
-   Command({"insert": "coll", "ordered": true, "documents": [{"_id": 2}]}, namespace="db")
+   Command({"insert": "coll", "ordered": true, "documents": [{"_id": 1}]}, namespace="db")
+
+(Note how MockupDB renders requests and replies as JSON, not Python.
+The chief differences are that "true" and "false" are lower-case, and the order
+of keys and values is faithfully shown, even in Python versions with unordered
+dicts.)
 
 Respond thus:
 
@@ -101,41 +102,14 @@ which is an `~pymongo.results.InsertOneResult`:
    >>> write_result  # doctest: +ELLIPSIS
    <pymongo.results.InsertOneResult object at ...>
    >>> write_result.inserted_id
-   2
+   1
 
 If you don't need the future's return value, you can express this more tersely
 with `going`:
 
-   >>> with going(collection.insert_one, {'_id': 3}):
+   >>> with going(collection.insert_one, {'_id': 1}):
    ...     server.receives().ok()
    True
-
-Reply To Write Commands
------------------------
-
-MockupDB runs the most recently added autoresponders first, and uses the
-first that matches. Override the previous "ismaster" responder to upgrade
-the wire protocol:
-
-   >>> responder = server.autoresponds('ismaster', maxWireVersion=6)
-
-Test that PyMongo now uses a write command instead of a legacy insert:
-
-   >>> client.close()
-   >>> future = go(collection.insert_one, {'_id': 1})
-   >>> request = server.receives()
-   >>> request
-   Command({"insert": "coll", "ordered": true, "documents": [{"_id": 1}]}, namespace="db")
-
-(Note how MockupDB requests and replies are rendered as JSON, not Python.
-This is mainly to show you the *order* of keys and values, which is sometimes
-important when testing a driver.)
-
-To unblock the background thread, send the default reply of ``{ok: 1}}``:
-
-   >>> request.reply()
-   True
-   >>> assert 1 == future().inserted_id
 
 Simulate a command error:
 
@@ -254,6 +228,210 @@ PyMongo sends a ``writeConcern`` argument if you specify ``w=1``:
    >>> future = go(collection.insert_one, {'_id': 5})
    >>> assert 'writeConcern' not in server.receives()
    >>> client.close()
+
+.. _message spec:
+
+Message Specs
+-------------
+
+We've seen some examples of ways to specify messages to send, and examples of
+ways to assert that a reply matches an expected pattern. Both are "message
+specs", a flexible syntax for describing wire protocol messages.
+
+Matching a request
+''''''''''''''''''
+
+One of MockupDB's most useful features for testing your application is that it
+can assert that your application's requests match a particular pattern:
+
+  >>> client = MongoClient(server.uri)
+  >>> future = go(client.db.collection.insert, {'_id': 1})
+  >>> # Assert the command name is "insert" and its parameter is "collection".
+  >>> request = server.receives(Command('insert', 'collection'))
+  >>> request.ok()
+  True
+  >>> assert future()
+
+If the request did not match, MockupDB would raise an `AssertionError`.
+
+The arguments to `Command` above are an example of a message spec. The
+pattern-matching rules are implemented in `Matcher`.
+Here are
+some more examples.
+
+The empty matcher matches anything:
+
+  >>> Matcher().matches({'a': 1})
+  True
+  >>> Matcher().matches({'a': 1}, {'a': 1})
+  True
+  >>> Matcher().matches('ismaster')
+  True
+
+A matcher's document matches if its key-value pairs are a subset of the
+request's:
+
+  >>> Matcher({'a': 1}).matches({'a': 1})
+  True
+  >>> Matcher({'a': 2}).matches({'a': 1})
+  False
+  >>> Matcher({'a': 1}).matches({'a': 1, 'b': 1})
+  True
+
+Prohibit a field:
+
+  >>> Matcher({'field': absent})
+  Matcher(Request({"field": {"absent": 1}}))
+  >>> Matcher({'field': absent}).matches({'field': 1})
+  False
+  >>> Matcher({'field': absent}).matches({'otherField': 1})
+  True
+
+Order matters if you use an OrderedDict:
+
+  >>> doc0 = OrderedDict([('a', 1), ('b', 1)])
+  >>> doc1 = OrderedDict([('b', 1), ('a', 1)])
+  >>> Matcher(doc0).matches(doc0)
+  True
+  >>> Matcher(doc0).matches(doc1)
+  False
+
+The matcher must have the same number of documents as the request:
+
+  >>> Matcher().matches()
+  True
+  >>> Matcher([]).matches([])
+  True
+  >>> Matcher({'a': 2}).matches({'a': 1}, {'a': 1})
+  False
+
+By default, it matches any opcode:
+
+  >>> m = Matcher()
+  >>> m.matches(OpQuery)
+  True
+  >>> m.matches(OpInsert)
+  True
+
+You can specify what request opcode to match:
+
+  >>> m = Matcher(OpQuery)
+  >>> m.matches(OpInsert, {'_id': 1})
+  False
+  >>> m.matches(OpQuery, {'_id': 1})
+  True
+
+Commands are queries on some database's "database.$cmd" namespace.
+They are specially prohibited from matching regular queries:
+
+  >>> Matcher(OpQuery).matches(Command)
+  False
+  >>> Matcher(Command).matches(Command)
+  True
+  >>> Matcher(OpQuery).matches(OpQuery)
+  True
+  >>> Matcher(Command).matches(OpQuery)
+  False
+
+The command name is matched case-insensitively:
+
+  >>> Matcher(Command('ismaster')).matches(Command('IsMaster'))
+  True
+
+You can match properties specific to certain opcodes:
+
+  >>> m = Matcher(OpGetMore, num_to_return=3)
+  >>> m.matches(OpGetMore())
+  False
+  >>> m.matches(OpGetMore(num_to_return=2))
+  False
+  >>> m.matches(OpGetMore(num_to_return=3))
+  True
+  >>> m = Matcher(OpQuery(namespace='db.collection'))
+  >>> m.matches(OpQuery)
+  False
+  >>> m.matches(OpQuery(namespace='db.collection'))
+  True
+
+It matches any wire protocol header bits you specify:
+
+  >>> m = Matcher(flags=QUERY_FLAGS['SlaveOkay'])
+  >>> m.matches(OpQuery({'_id': 1}))
+  False
+  >>> m.matches(OpQuery({'_id': 1}, flags=QUERY_FLAGS['SlaveOkay']))
+  True
+
+If you match on flags, be careful to also match on opcode. For example,
+if you simply check that the flag in bit position 0 is set:
+
+  >>> m = Matcher(flags=INSERT_FLAGS['ContinueOnError'])
+
+... you will match any request with that flag:
+
+  >>> m.matches(OpDelete, flags=DELETE_FLAGS['SingleRemove'])
+  True
+
+So specify the opcode, too:
+
+  >>> m = Matcher(OpInsert, flags=INSERT_FLAGS['ContinueOnError'])
+  >>> m.matches(OpDelete, flags=DELETE_FLAGS['SingleRemove'])
+  False
+
+Sending a reply
+'''''''''''''''
+
+The default reply is ``{'ok': 1}``:
+
+.. code-block:: pycon3
+
+  >>> request = server.receives()
+  >>> request.ok()  # Send {'ok': 1}.
+
+You can send additional information with the `~Request.ok` method:
+
+.. code-block:: pycon3
+
+  >>> request.ok(field='value')  # Send {'ok': 1, 'field': 'value'}.
+
+Simulate a server error with `~Request.command_err`:
+
+.. code-block:: pycon3
+
+  >>> request.command_err(code=11000, errmsg='Duplicate key', field='value')
+
+All methods for sending replies parse their arguments with the `make_reply`
+internal function. The function interprets its first argument as the "ok" field
+value if it is a number, otherwise interprets it as the first field of the reply
+document and assumes the value is 1:
+
+  >>> import mockupdb
+  >>> mockupdb.make_reply()
+  OpReply()
+  >>> mockupdb.make_reply(0)
+  OpReply({"ok": 0})
+  >>> mockupdb.make_reply("foo")
+  OpReply({"foo": 1})
+
+You can pass a dict or OrderedDict of fields instead of using keyword arguments.
+This is best for fieldnames that are not valid Python identifiers:
+
+  >>> mockupdb.make_reply(OrderedDict([('ok', 0), ('$err', 'bad')]))
+  OpReply({"ok": 0, "$err": "bad"})
+
+You can customize the OP_REPLY header flags with the "flags" keyword argument:
+
+  >>> r = mockupdb.make_reply(OrderedDict([('ok', 0), ('$err', 'bad')]),
+  ...                         flags=REPLY_FLAGS['QueryFailure'])
+  >>> repr(r)
+  'OpReply({"ok": 0, "$err": "bad"}, flags=QueryFailure)'
+
+The above logic, which simulates a query error in MongoDB before 3.2, is
+provided conveniently in `~Request.fail()`. This protocol is obsolete in MongoDB
+3.2+, which uses commands for all operations.
+
+Although these examples call `make_reply` explicitly, this is only to
+illustrate how replies are specified. Your code will pass these arguments to a
+`Request` method like `~Request.replies`.
 
 Wait For A Request Impatiently
 ------------------------------
