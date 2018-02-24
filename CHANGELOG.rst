@@ -3,6 +3,13 @@
 Changelog
 =========
 
+Next Release
+------------
+
+Update vendored bson library from PyMongo. Support the Decimal128 BSON type. Fix
+Matcher so it equates BSON objects from PyMongo like ``ObjectId(...)`` with
+equivalent objects created from MockupDB's vendored bson library.
+
 1.3.0 (2018-02-19)
 ------------------
 
