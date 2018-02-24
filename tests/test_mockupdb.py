@@ -18,8 +18,8 @@ except ImportError:
     from Queue import Queue
 
 # Tests depend on PyMongo's BSON implementation, but MockupDB itself does not.
-from bson import (SON, ObjectId, Binary, Regex, Code, Timestamp, DBRef,
-                  MaxKey, MinKey)
+from bson import (Binary, Code, DBRef, Decimal128, MaxKey, MinKey, ObjectId,
+                  Regex, SON, Timestamp)
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, message, WriteConcern
 
@@ -200,15 +200,16 @@ class TestMatcher(unittest.TestCase):
 
         for a, b in [
             (Binary(b'foo'), mockup_bson.Binary(b'foo')),
-            (ObjectId(_id), mockup_bson.ObjectId(_id)),
-            (Regex('foo', 'i'), mockup_bson.Regex('foo', 'i')),
             (Code('foo'), mockup_bson.Code('foo')),
             (Code('foo', {'x': 1}), mockup_bson.Code('foo', {'x': 1})),
-            (Timestamp(1, 2), mockup_bson.Timestamp(1, 2)),
             (DBRef('coll', 1), mockup_bson.DBRef('coll', 1)),
             (DBRef('coll', 1, 'db'), mockup_bson.DBRef('coll', 1, 'db')),
+            (Decimal128('1'), mockup_bson.Decimal128('1')),
             (MaxKey(), mockup_bson.MaxKey()),
             (MinKey(), mockup_bson.MinKey()),
+            (ObjectId(_id), mockup_bson.ObjectId(_id)),
+            (Regex('foo', 'i'), mockup_bson.Regex('foo', 'i')),
+            (Timestamp(1, 2), mockup_bson.Timestamp(1, 2)),
         ]:
             # Basic case.
             self.assertTrue(

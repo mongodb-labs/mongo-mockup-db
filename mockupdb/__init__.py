@@ -300,6 +300,8 @@ def _bson_values_equal(a, b):
         13: lambda obj: (obj.scope, str(obj)),
         # Timestamp.
         17: lambda obj: (obj.time, obj.inc),
+        # Decimal128.
+        19: lambda obj: obj.bid,
         # DBRef.
         100: lambda obj: (obj.database, obj.collection, obj.id),
         # MaxKey.
