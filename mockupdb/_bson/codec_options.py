@@ -1,4 +1,4 @@
-# Copyright 2014-2015 MongoDB, Inc.
+# Copyright 2014-present MongoDB, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,12 +16,20 @@
 
 import datetime
 
-from collections import MutableMapping, namedtuple
+from collections import namedtuple
 
-from mockupdb._bson.py3compat import string_type
+from mockupdb._bson.py3compat import abc, string_type
 from mockupdb._bson.binary import (ALL_UUID_REPRESENTATIONS,
-                         PYTHON_LEGACY,
-                         UUID_REPRESENTATION_NAMES)
+                                   PYTHON_LEGACY,
+                                   UUID_REPRESENTATION_NAMES)
+
+_RAW_BSON_DOCUMENT_MARKER = 101
+
+
+def _raw_document_class(document_class):
+    """Determine if a document_class is a RawBSONDocument class."""
+    marker = getattr(document_class, '_type_marker', None)
+    return marker == _RAW_BSON_DOCUMENT_MARKER
 
 
 _options_base = namedtuple(
@@ -44,28 +52,28 @@ class CodecOptions(_options_base):
         and decoding instances of :class:`~uuid.UUID`. Defaults to
         :data:`~bson.binary.PYTHON_LEGACY`.
       - `unicode_decode_error_handler`: The error handler to use when decoding
-         an invalid BSON string. Valid options include 'strict', 'replace', and
-         'ignore'. Defaults to 'strict'.
+        an invalid BSON string. Valid options include 'strict', 'replace', and
+        'ignore'. Defaults to 'strict'.
+      - `tzinfo`: A :class:`~datetime.tzinfo` subclass that specifies the
+        timezone to/from which :class:`~datetime.datetime` objects should be
+        encoded/decoded.
 
     .. warning:: Care must be taken when changing
        `unicode_decode_error_handler` from its default value ('strict').
        The 'replace' and 'ignore' modes should not be used when documents
        retrieved from the server will be modified in the client application
        and stored back to the server.
-
-      - `tzinfo`: A :class:`~datetime.tzinfo` subclass that specifies the
-        timezone to/from which :class:`~datetime.datetime` objects should be
-        encoded/decoded.
-
     """
 
     def __new__(cls, document_class=dict,
                 tz_aware=False, uuid_representation=PYTHON_LEGACY,
                 unicode_decode_error_handler="strict",
                 tzinfo=None):
-        if not issubclass(document_class, MutableMapping):
-            raise TypeError("document_class must be dict, bson.son.SON, or "
-                            "another subclass of collections.MutableMapping")
+        if not (issubclass(document_class, abc.MutableMapping) or
+                _raw_document_class(document_class)):
+            raise TypeError("document_class must be dict, bson.son.SON, "
+                            "bson.raw_bson.RawBSONDocument, or a "
+                            "sublass of collections.MutableMapping")
         if not isinstance(tz_aware, bool):
             raise TypeError("tz_aware must be True or False")
         if uuid_representation not in ALL_UUID_REPRESENTATIONS:
@@ -86,7 +94,8 @@ class CodecOptions(_options_base):
             cls, (document_class, tz_aware, uuid_representation,
                   unicode_decode_error_handler, tzinfo))
 
-    def __repr__(self):
+    def _arguments_repr(self):
+        """Representation of the arguments used to create this object."""
         document_class_repr = (
             'dict' if self.document_class is dict
             else repr(self.document_class))
@@ -94,12 +103,33 @@ class CodecOptions(_options_base):
         uuid_rep_repr = UUID_REPRESENTATION_NAMES.get(self.uuid_representation,
                                                       self.uuid_representation)
 
-        return (
-            'CodecOptions(document_class=%s, tz_aware=%r, uuid_representation='
-            '%s, unicode_decode_error_handler=%r, tzinfo=%r)' %
-            (document_class_repr, self.tz_aware, uuid_rep_repr,
-             self.unicode_decode_error_handler,
-             self.tzinfo))
+        return ('document_class=%s, tz_aware=%r, uuid_representation='
+                '%s, unicode_decode_error_handler=%r, tzinfo=%r' %
+                (document_class_repr, self.tz_aware, uuid_rep_repr,
+                 self.unicode_decode_error_handler, self.tzinfo))
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__.__name__, self._arguments_repr())
+
+    def with_options(self, **kwargs):
+        """Make a copy of this CodecOptions, overriding some options::
+
+            >>> from mockupdb._bson.codec_options import DEFAULT_CODEC_OPTIONS
+            >>> DEFAULT_CODEC_OPTIONS.tz_aware
+            False
+            >>> options = DEFAULT_CODEC_OPTIONS.with_options(tz_aware=True)
+            >>> options.tz_aware
+            True
+
+        .. versionadded:: 3.5
+        """
+        return CodecOptions(
+            kwargs.get('document_class', self.document_class),
+            kwargs.get('tz_aware', self.tz_aware),
+            kwargs.get('uuid_representation', self.uuid_representation),
+            kwargs.get('unicode_decode_error_handler',
+                       self.unicode_decode_error_handler),
+            kwargs.get('tzinfo', self.tzinfo))
 
 
 DEFAULT_CODEC_OPTIONS = CodecOptions()

@@ -1,4 +1,4 @@
-# Copyright 2009-2015 MongoDB, Inc.
+# Copyright 2009-present MongoDB, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you
 # may not use this file except in compliance with the License.  You
@@ -22,6 +22,13 @@ if PY3:
     import codecs
     import _thread as thread
     from io import BytesIO as StringIO
+
+    try:
+        import collections.abc as abc
+    except ImportError:
+        # PyPy3 (based on CPython 3.2)
+        import collections as abc
+
     MAXSIZE = sys.maxsize
 
     imap = map
@@ -33,10 +40,6 @@ if PY3:
         # the b prefix (e.g. b'foo').
         # See http://python3porting.com/problems.html#nicer-solutions
         return codecs.latin_1_encode(s)[0]
-
-    def u(s):
-        # PY3 strings may already be treated as unicode literals
-        return s
 
     def bytes_from_hex(h):
         return bytes.fromhex(h)
@@ -57,6 +60,7 @@ if PY3:
     string_type = str
     integer_types = int
 else:
+    import collections as abc
     import thread
 
     from itertools import imap
@@ -70,10 +74,6 @@ else:
     def b(s):
         # See comments above. In python 2.x b('foo') is just 'foo'.
         return s
-
-    def u(s):
-        """Replacement for unicode literal prefix."""
-        return unicode(s.replace('\\', '\\\\'), 'unicode_escape')
 
     def bytes_from_hex(h):
         return h.decode('hex')

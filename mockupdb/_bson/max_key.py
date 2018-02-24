@@ -1,4 +1,4 @@
-# Copyright 2010-2015 MongoDB, Inc.
+# Copyright 2010-present MongoDB, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,13 +36,13 @@ class MaxKey(object):
 
     def __le__(self, other):
         return isinstance(other, MaxKey)
-    
+
     def __lt__(self, dummy):
         return False
 
     def __ge__(self, dummy):
         return True
-    
+
     def __gt__(self, other):
         return not isinstance(other, MaxKey)
 

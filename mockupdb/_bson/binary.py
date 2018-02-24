@@ -1,4 +1,4 @@
-# Copyright 2009-2015 MongoDB, Inc.
+# Copyright 2009-present MongoDB, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,9 +80,11 @@ JAVA_LEGACY = 5
 """The Java legacy UUID representation.
 
 :class:`uuid.UUID` instances will automatically be encoded to
-and decoded from mockupdb._bson binary, using the Java driver's legacy
-byte order with binary subtype :data:`OLD_UUID_SUBTYPE`.
+and decoded from mockupdb._bson binary subtype :data:`OLD_UUID_SUBTYPE`,
+using the Java driver's legacy byte order.
 
+.. versionchanged:: 3.6
+  BSON binary subtype 4 is decoded using RFC-4122 byte order.
 .. versionadded:: 2.3
 """
 
@@ -90,9 +92,11 @@ CSHARP_LEGACY = 6
 """The C#/.net legacy UUID representation.
 
 :class:`uuid.UUID` instances will automatically be encoded to
-and decoded from mockupdb._bson binary, using the C# driver's legacy
-byte order and binary subtype :data:`OLD_UUID_SUBTYPE`.
+and decoded from mockupdb._bson binary subtype :data:`OLD_UUID_SUBTYPE`,
+using the C# driver's legacy byte order.
 
+.. versionchanged:: 3.6
+  BSON binary subtype 4 is decoded using RFC-4122 byte order.
 .. versionadded:: 2.3
 """
 
