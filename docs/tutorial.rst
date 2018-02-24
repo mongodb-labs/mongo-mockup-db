@@ -66,7 +66,7 @@ Reply To Write Commands
 -----------------------
 
 If PyMongo sends an unacknowledged OP_INSERT it does not block
-waiting for you to call `~Request.replies`. However, for acknowledge operations
+waiting for you to call `~Request.replies`. However, for acknowledged operations
 it does block. Use `~test.utils.go` to defer PyMongo to a background thread so
 you can respond from the main thread:
 
