@@ -4,7 +4,6 @@
 """Test MockupDB."""
 
 import contextlib
-import os
 import ssl
 import sys
 
@@ -19,15 +18,15 @@ except ImportError:
     from Queue import Queue
 
 # Tests depend on PyMongo's BSON implementation, but MockupDB itself does not.
-from bson import SON
+from bson import (SON, ObjectId, Binary, Regex, Code, Timestamp, DBRef,
+                  MaxKey, MinKey)
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, message, WriteConcern
 
-from mockupdb import (go, going,
+from mockupdb import (_bson as mockup_bson, go, going,
                       Command, Matcher, MockupDB, Request,
                       OpDelete, OpInsert, OpQuery, OpUpdate,
                       DELETE_FLAGS, INSERT_FLAGS, UPDATE_FLAGS, QUERY_FLAGS)
-
 from tests import unittest  # unittest2 on Python 2.6.
 
 
@@ -195,6 +194,40 @@ class TestMatcher(unittest.TestCase):
 
         self.assertFalse(
             Matcher(Command('a', b=1)).matches(Command('a', b=2)))
+
+    def test_bson_classes(self):
+        _id = '5a918f9fa08bff9c7688d3e1'
+
+        for a, b in [
+            (Binary(b'foo'), mockup_bson.Binary(b'foo')),
+            (ObjectId(_id), mockup_bson.ObjectId(_id)),
+            (Regex('foo', 'i'), mockup_bson.Regex('foo', 'i')),
+            (Code('foo'), mockup_bson.Code('foo')),
+            (Code('foo', {'x': 1}), mockup_bson.Code('foo', {'x': 1})),
+            (Timestamp(1, 2), mockup_bson.Timestamp(1, 2)),
+            (DBRef('coll', 1), mockup_bson.DBRef('coll', 1)),
+            (DBRef('coll', 1, 'db'), mockup_bson.DBRef('coll', 1, 'db')),
+            (MaxKey(), mockup_bson.MaxKey()),
+            (MinKey(), mockup_bson.MinKey()),
+        ]:
+            # Basic case.
+            self.assertTrue(
+                Matcher(Command(y=b)).matches(Command(y=b)),
+                "MockupDB %r doesn't equal itself" % (b,))
+
+            # First Command argument is special, try comparing the second also.
+            self.assertTrue(
+                Matcher(Command('x', y=b)).matches(Command('x', y=b)),
+                "MockupDB %r doesn't equal itself" % (b,))
+
+            # In practice, users pass PyMongo classes in message specs.
+            self.assertTrue(
+                Matcher(Command(y=b)).matches(Command(y=a)),
+                "PyMongo %r != MockupDB %r" % (a, b))
+
+            self.assertTrue(
+                Matcher(Command('x', y=b)).matches(Command('x', y=a)),
+                "PyMongo %r != MockupDB %r" % (a, b))
 
 
 class TestAutoresponds(unittest.TestCase):
