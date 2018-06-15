@@ -980,7 +980,7 @@ class OpMsgReply(Reply):
     """A OP_MSG reply from `MockupDB` to the client."""
     def __init__(self, *args, **kwargs):
         super(OpMsgReply, self).__init__(*args, **kwargs)
-        assert len(self._docs) == 1, 'OpMsgReply must have one document'
+        assert len(self._docs) <= 1, 'OpMsgReply can only have one document'
 
     @property
     def docs(self):
@@ -1007,7 +1007,13 @@ class OpMsgReply(Reply):
         """Take a `Request` and return an OP_REPLY message as bytes."""
         flags = struct.pack("<I", self._flags)
         payload_type = struct.pack("<b", 0)
-        payload_data = _bson.BSON.encode(self.doc)
+        if self._docs:
+            doc = self.doc
+        else:
+            # Default to a generic ok command response.
+            doc = {"ok": 1}
+
+        payload_data = _bson.BSON.encode(doc)
         data = b''.join([flags, payload_type, payload_data])
 
         reply_id = random.randint(0, 1000000)
