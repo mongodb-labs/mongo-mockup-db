@@ -266,7 +266,7 @@ REPLY_FLAGS = OrderedDict([
 
 OP_MSG_FLAGS = OrderedDict([
     ('checksumPresent', 1),
-    ('moreToCome', 4)])
+    ('moreToCome', 2)])
 
 _UNPACK_INT = struct.Struct("<i").unpack
 _UNPACK_LONG = struct.Struct("<q").unpack
@@ -594,8 +594,19 @@ class OpMsg(Request):
 
     def __init__(self, *args, **kwargs):
         super(OpMsg, self).__init__(*args, **kwargs)
+        self._database = self.doc['$db']
+        self._read_preference = self.doc.get('$readPreference')
         if len(self._docs) > 1:
             raise_args_err('OpMsg too many documents', ValueError)
+
+    @property
+    def slave_ok(self):
+        """True if this OpMsg can read from a secondary."""
+        return (self._read_preference and
+                self._read_preference.get('mode') != 'primary')
+
+    slave_okay = slave_ok
+    """Synonym for `.slave_ok`."""
 
     @property
     def command_name(self):
