@@ -1786,16 +1786,10 @@ def make_reply(*args, **kwargs):
 
 def make_op_msg_reply(*args, **kwargs):
     # Error we might raise.
-    if args and isinstance(args[0], OpMsgReply):
+    if args and isinstance(args[0], (OpReply, OpMsgReply)):
         if args[1:] or kwargs:
             raise_args_err("can't interpret args")
         return args[0]
-
-    # HACK: tests should not specify OpReply when the maxWireVersion>=6
-    if args and isinstance(args[0], OpReply):
-        if args[1:] or kwargs:
-            raise_args_err("can't interpret args")
-        return OpMsgReply(args[0].doc)
 
     return OpMsgReply(*args, **kwargs)
 
