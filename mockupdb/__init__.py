@@ -594,7 +594,6 @@ class OpMsg(Request):
 
     def __init__(self, *args, **kwargs):
         super(OpMsg, self).__init__(*args, **kwargs)
-        self._database = self.doc['$db']
         self._read_preference = self.doc.get('$readPreference')
         if len(self._docs) > 1:
             raise_args_err('OpMsg too many documents', ValueError)
