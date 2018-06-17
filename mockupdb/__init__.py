@@ -594,15 +594,14 @@ class OpMsg(Request):
 
     def __init__(self, *args, **kwargs):
         super(OpMsg, self).__init__(*args, **kwargs)
-        self._read_preference = self.doc.get('$readPreference')
         if len(self._docs) > 1:
             raise_args_err('OpMsg too many documents', ValueError)
 
     @property
     def slave_ok(self):
         """True if this OpMsg can read from a secondary."""
-        return (self._read_preference and
-                self._read_preference.get('mode') != 'primary')
+        read_preference = self.doc.get('$readPreference')
+        return read_preference and read_preference.get('mode') != 'primary'
 
     slave_okay = slave_ok
     """Synonym for `.slave_ok`."""
