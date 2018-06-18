@@ -268,7 +268,9 @@ OP_MSG_FLAGS = OrderedDict([
     ('checksumPresent', 1),
     ('moreToCome', 2)])
 
+_UNPACK_BYTE = struct.Struct("<b").unpack
 _UNPACK_INT = struct.Struct("<i").unpack
+_UNPACK_UINT = struct.Struct("<I").unpack
 _UNPACK_LONG = struct.Struct("<q").unpack
 
 
@@ -565,8 +567,6 @@ class OpMsg(Request):
     is_command = True
     _flags_map = OP_MSG_FLAGS
 
-    UNPACK_HEADER = struct.Struct("<Ibi").unpack
-
     @classmethod
     def unpack(cls, msg, client, server, request_id):
         """Parse message and return an `OpMsg`.
@@ -574,18 +574,35 @@ class OpMsg(Request):
         Takes the client message as bytes, the client and server socket objects,
         and the client request id.
         """
-        flags, first_payload_type, first_payload_size = cls.UNPACK_HEADER(
-            msg[:9])
+        flags, = _UNPACK_UINT(msg[:4])
+        pos = 4
+        first_payload_type, = _UNPACK_BYTE(msg[pos:pos+1])
+        pos += 1
+        first_payload_size, = _UNPACK_INT(msg[pos:pos+4])
         if flags != 0:
-            raise_args_err('OpMsg flag unsupported', ValueError)
+            raise ValueError('OP_MSG flag must be 0 not %r' % (flags,))
         if first_payload_type != 0:
-            raise_args_err('OpMsg payload type unsupported', ValueError)
+            raise ValueError('First OP_MSG payload type must be 0 not %r' % (
+                first_payload_type,))
 
-        if len(msg) != first_payload_size + 5:
-            raise_args_err('OpMsg multiple payload sections unsupported',
-                           ValueError)
+        # Parse the initial document and add the optional payload type 1.
+        payload_document = _bson.decode_all(msg[pos:pos+first_payload_size],
+                                            CODEC_OPTIONS)[0]
+        pos += first_payload_size
+        if len(msg) != pos:
+            payload_type, = _UNPACK_BYTE(msg[pos:pos+1])
+            pos += 1
+            if payload_type != 1:
+                raise ValueError('Second OP_MSG payload type must be 1 not %r'
+                                 % (payload_type,))
+            section_size, = _UNPACK_INT(msg[pos:pos+4])
+            pos += 4
+            if len(msg) != pos + section_size:
+                raise ValueError('More than two OP_MSG sections unsupported')
+            identifier, pos = _get_c_string(msg, pos)
+            documents = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
+            payload_document[identifier] = documents
 
-        payload_document = _bson.decode_all(msg[5:], CODEC_OPTIONS)[0]
         database = payload_document['$db']
         return OpMsg(payload_document, namespace=database, flags=flags,
                      _client=client, request_id=request_id,
