@@ -561,7 +561,44 @@ class Request(object):
         return '%s(%s)' % (name, ', '.join(str(part) for part in parts))
 
 
-class OpMsg(Request):
+class CommandBase(Request):
+    """A command the client executes on the server."""
+    is_command = True
+
+    # Check command name case-insensitively.
+    _non_matched_attrs = Request._non_matched_attrs + ('command_name', )
+
+    @property
+    def command_name(self):
+        """The command name or None.
+
+        >>> Command({'count': 'collection'}).command_name
+        'count'
+        >>> Command('aggregate', 'collection', cursor=absent).command_name
+        'aggregate'
+        """
+        if self.docs and self.docs[0]:
+            return list(self.docs[0])[0]
+
+    def _matches_docs(self, docs, other_docs):
+        assert len(docs) == len(other_docs) == 1
+        doc, = docs
+        other_doc, = other_docs
+        items = list(doc.items())
+        other_items = list(other_doc.items())
+
+        # Compare command name case-insensitively.
+        if items and other_items:
+            if items[0][0].lower() != other_items[0][0].lower():
+                return False
+            if not _bson_values_equal(items[0][1], other_items[0][1]):
+                return False
+        return super(CommandBase, self)._matches_docs(
+            [OrderedDict(items[1:])],
+            [OrderedDict(other_items[1:])])
+
+
+class OpMsg(CommandBase):
     """An OP_MSG request the client executes on the server."""
     opcode = OP_MSG
     is_command = True
@@ -727,41 +764,8 @@ class OpQuery(Request):
         return rep + ')'
 
 
-class Command(OpQuery):
+class Command(CommandBase, OpQuery):
     """A command the client executes on the server."""
-    is_command = True
-
-    # Check command name case-insensitively.
-    _non_matched_attrs = OpQuery._non_matched_attrs + ('command_name', )
-
-    @property
-    def command_name(self):
-        """The command name or None.
-
-        >>> Command({'count': 'collection'}).command_name
-        'count'
-        >>> Command('aggregate', 'collection', cursor=absent).command_name
-        'aggregate'
-        """
-        if self.docs and self.docs[0]:
-            return list(self.docs[0])[0]
-
-    def _matches_docs(self, docs, other_docs):
-        assert len(docs) == len(other_docs) == 1
-        doc, = docs
-        other_doc, = other_docs
-        items = list(doc.items())
-        other_items = list(other_doc.items())
-
-        # Compare command name case-insensitively.
-        if items and other_items:
-            if items[0][0].lower() != other_items[0][0].lower():
-                return False
-            if not _bson_values_equal(items[0][1], other_items[0][1]):
-                return False
-        return super(Command, self)._matches_docs(
-            [OrderedDict(items[1:])],
-            [OrderedDict(other_items[1:])])
 
     def _replies(self, *args, **kwargs):
         reply = make_reply(*args, **kwargs)
@@ -1207,8 +1211,15 @@ class MockupDB(object):
                               {'ismaster': True,
                                'minWireVersion': min_wire_version,
                                'maxWireVersion': max_wire_version})
+            if max_wire_version >= 6:
+                self.autoresponds(OpMsg('ismaster'),
+                                  {'ismaster': True,
+                                   'minWireVersion': min_wire_version,
+                                   'maxWireVersion': max_wire_version})
         elif auto_ismaster:
             self.autoresponds(Command('ismaster'), auto_ismaster)
+            if max_wire_version >= 6:
+                self.autoresponds(OpMsg('ismaster'), auto_ismaster)
 
     @_synchronized
     def run(self):
