@@ -1018,16 +1018,10 @@ class OpMsgReply(Reply):
         self.doc.update(*args, **kwargs)
 
     def reply_bytes(self, request):
-        """Take a `Request` and return an OP_REPLY message as bytes."""
+        """Take a `Request` and return an OP_MSG message as bytes."""
         flags = struct.pack("<I", self._flags)
         payload_type = struct.pack("<b", 0)
-        if self._docs:
-            doc = self.doc
-        else:
-            # Default to a generic ok command response.
-            doc = {"ok": 1}
-
-        payload_data = _bson.BSON.encode(doc)
+        payload_data = _bson.BSON.encode(self.doc)
         data = b''.join([flags, payload_type, payload_data])
 
         reply_id = random.randint(0, 1000000)
