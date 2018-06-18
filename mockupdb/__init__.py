@@ -455,11 +455,7 @@ class Request(object):
 
         Returns True so it is suitable as an `~MockupDB.autoresponds` handler.
         """
-        reply_msg = self._replies(*args, **kwargs)
-        if self._server:
-            self._server._log('\t%d\t<-- %r' % (self.client_port, reply_msg))
-        reply_bytes = reply_msg.reply_bytes(self)
-        self._client.sendall(reply_bytes)
+        self._replies(*args, **kwargs)
         return True
 
     ok = send = sends = reply = replies
@@ -524,7 +520,11 @@ class Request(object):
 
     def _replies(self, *args, **kwargs):
         """Overridable method."""
-        return make_reply(*args, **kwargs)
+        reply_msg = make_reply(*args, **kwargs)
+        if self._server:
+            self._server._log('\t%d\t<-- %r' % (self.client_port, reply_msg))
+        reply_bytes = reply_msg.reply_bytes(self)
+        self._client.sendall(reply_bytes)
 
     def __contains__(self, item):
         if item in self.docs:
@@ -574,7 +574,6 @@ class OpMsg(Request):
         Takes the client message as bytes, the client and server socket objects,
         and the client request id.
         """
-
         flags, first_payload_type, first_payload_size = cls.UNPACK_HEADER(
             msg[:9])
         if flags != 0:
@@ -624,10 +623,10 @@ class OpMsg(Request):
             reply.docs = [{'ok': 1}]
         else:
             if len(reply.docs) > 1:
-                raise ValueError('Command reply with multiple documents: %s'
+                raise ValueError('OP_MSG reply with multiple documents: %s'
                                  % (reply.docs, ))
             reply.doc.setdefault('ok', 1)
-        return reply
+        super(OpMsg, self)._replies(reply)
 
 
 class OpQuery(Request):
@@ -756,7 +755,7 @@ class Command(OpQuery):
                 raise ValueError('Command reply with multiple documents: %s'
                                  % (reply.docs, ))
             reply.doc.setdefault('ok', 1)
-        return reply
+        super(Command, self)._replies(reply)
 
     def replies_to_gle(self, **kwargs):
         """Send a getlasterror response.
@@ -929,7 +928,7 @@ class Reply(object):
 
 
 class OpReply(Reply):
-    """A OP_REPLY reply from `MockupDB` to the client."""
+    """An OP_REPLY reply from `MockupDB` to the client."""
     def __init__(self, *args, **kwargs):
         self._cursor_id = kwargs.pop('cursor_id', 0)
         self._starting_from = kwargs.pop('starting_from', 0)
