@@ -24,7 +24,7 @@ from bson.codec_options import CodecOptions
 from pymongo import MongoClient, message, WriteConcern
 
 from mockupdb import (_bson as mockup_bson, go, going,
-                      Command, Matcher, MockupDB, Request,
+                      Command, CommandBase, Matcher, MockupDB, Request,
                       OpDelete, OpInsert, OpMsg, OpQuery, OpUpdate,
                       DELETE_FLAGS, INSERT_FLAGS, UPDATE_FLAGS, QUERY_FLAGS)
 from tests import unittest  # unittest2 on Python 2.6.
@@ -243,7 +243,7 @@ class TestAutoresponds(unittest.TestCase):
     def test_autoresponds_case_insensitive(self):
         server = MockupDB(auto_ismaster=True)
         # Little M. Note this is only case-insensitive because it's a Command.
-        server.autoresponds(OpMsg('fooBar'), foo='bar')
+        server.autoresponds(CommandBase('fooBar'), foo='bar')
         server.run()
         response = MongoClient(server.uri).admin.command('Foobar')
         self.assertEqual('bar', response['foo'])
