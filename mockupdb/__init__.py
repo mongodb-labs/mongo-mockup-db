@@ -616,8 +616,8 @@ class OpMsg(CommandBase):
         first_payload_type, = _UNPACK_BYTE(msg[pos:pos+1])
         pos += 1
         first_payload_size, = _UNPACK_INT(msg[pos:pos+4])
-        if flags != 0:
-            raise ValueError('OP_MSG flag must be 0 not %r' % (flags,))
+        if flags != 0 and flags != 2:
+            raise ValueError('OP_MSG flag must be 0 or 2 not %r' % (flags,))
         if first_payload_type != 0:
             raise ValueError('First OP_MSG payload type must be 0 not %r' % (
                 first_payload_type,))
@@ -633,9 +633,9 @@ class OpMsg(CommandBase):
                 raise ValueError('Second OP_MSG payload type must be 1 not %r'
                                  % (payload_type,))
             section_size, = _UNPACK_INT(msg[pos:pos+4])
-            pos += 4
             if len(msg) != pos + section_size:
                 raise ValueError('More than two OP_MSG sections unsupported')
+            pos += 4
             identifier, pos = _get_c_string(msg, pos)
             documents = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
             payload_document[identifier] = documents
@@ -672,6 +672,8 @@ class OpMsg(CommandBase):
             return list(self.docs[0])[0]
 
     def _replies(self, *args, **kwargs):
+        if self.flags & OP_MSG_FLAGS['moreToCome']:
+            assert False, "Cannot reply to OpMsg with moreToCome: %r" % (self,)
         reply = make_op_msg_reply(*args, **kwargs)
         if not reply.docs:
             reply.docs = [{'ok': 1}]
@@ -1207,19 +1209,12 @@ class MockupDB(object):
         self._autoresponders = []
 
         if auto_ismaster is True:
-            self.autoresponds(Command('ismaster'),
+            self.autoresponds(CommandBase('ismaster'),
                               {'ismaster': True,
                                'minWireVersion': min_wire_version,
                                'maxWireVersion': max_wire_version})
-            if max_wire_version >= 6:
-                self.autoresponds(OpMsg('ismaster'),
-                                  {'ismaster': True,
-                                   'minWireVersion': min_wire_version,
-                                   'maxWireVersion': max_wire_version})
         elif auto_ismaster:
-            self.autoresponds(Command('ismaster'), auto_ismaster)
-            if max_wire_version >= 6:
-                self.autoresponds(OpMsg('ismaster'), auto_ismaster)
+            self.autoresponds(CommandBase('ismaster'), auto_ismaster)
 
     @_synchronized
     def run(self):
