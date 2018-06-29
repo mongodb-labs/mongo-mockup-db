@@ -3,8 +3,11 @@
 Changelog
 =========
 
-Next Release
-------------
+1.4.0 (2018-06-29)
+------------------
+
+Support, and expect, OP_MSG requests from clients. Thanks to Shane Harvey for
+the contribution.
 
 Update vendored bson library from PyMongo. Support the Decimal128 BSON type. Fix
 Matcher so it equates BSON objects from PyMongo like ``ObjectId(...)`` with
