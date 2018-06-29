@@ -352,7 +352,7 @@ class _PeekableQueue(Queue):
 
 
 class Request(object):
-    """Base class for `Command`, `OpInsert`, and so on.
+    """Base class for `Command`, `OpMsg`, and so on.
 
     Some useful asserts you can do in tests:
 
@@ -364,13 +364,13 @@ class Request(object):
     True
     >>> {'_id': 1} == OpInsert([{'_id': 0}, {'_id': 1}])[1]
     True
-    >>> 'field' in Command(field=1)
+    >>> 'field' in OpMsg(field=1)
     True
-    >>> 'field' in Command()
+    >>> 'field' in OpMsg()
     False
-    >>> 'field' in Command('ismaster')
+    >>> 'field' in OpMsg('ismaster')
     False
-    >>> Command(ismaster=False)['ismaster'] is False
+    >>> OpMsg(ismaster=False)['ismaster'] is False
     True
     """
     opcode = None
@@ -576,9 +576,9 @@ class CommandBase(Request):
     def command_name(self):
         """The command name or None.
 
-        >>> Command({'count': 'collection'}).command_name
+        >>> OpMsg({'count': 'collection'}).command_name
         'count'
-        >>> Command('aggregate', 'collection', cursor=absent).command_name
+        >>> OpMsg('aggregate', 'collection', cursor=absent).command_name
         'aggregate'
         """
         if self.docs and self.docs[0]:
@@ -1041,6 +1041,15 @@ class OpMsgReply(Reply):
             "<iiii", 16 + len(data), reply_id, response_to, OP_MSG)
         return header + data
 
+    def __repr__(self):
+        rep = '%s(%s' % (self.__class__.__name__, self)
+        if self._flags:
+            rep += ', flags=' + '|'.join(
+                name for name, value in OP_MSG_FLAGS.items()
+                if self._flags & value)
+
+        return rep + ')'
+
 
 absent = {'absent': 1}
 
@@ -1299,9 +1308,9 @@ class MockupDB(object):
         >>> future = go(client.db.command, 'foo')
         >>> s.got('foo')
         True
-        >>> s.got(Command('foo', namespace='db'))
+        >>> s.got(OpMsg('foo', namespace='db'))
         True
-        >>> s.got(Command('foo', key='value'))
+        >>> s.got(OpMsg('foo', key='value'))
         False
         >>> s.ok()
         >>> future() == {'ok': 1}
@@ -1365,17 +1374,20 @@ class MockupDB(object):
 
         The remaining arguments are a :ref:`message spec <message spec>`:
 
+        >>> # ok
         >>> responder = s.autoresponds('bar', ok=0, errmsg='err')
         >>> client.db.command('bar')
         Traceback (most recent call last):
         ...
         OperationFailure: command SON([('bar', 1)]) on namespace db.$cmd failed: err
-        >>> responder = s.autoresponds(Command('find', 'collection'),
+        >>> responder = s.autoresponds(OpMsg('find', 'collection'),
         ...                            {'cursor': {'id': 0, 'firstBatch': [{'_id': 1}, {'_id': 2}]}})
+        >>> # ok
         >>> list(client.db.collection.find()) == [{'_id': 1}, {'_id': 2}]
         True
-        >>> responder = s.autoresponds(Command('find', 'collection'),
+        >>> responder = s.autoresponds(OpMsg('find', 'collection'),
         ...                            {'cursor': {'id': 0, 'firstBatch': [{'a': 1}, {'a': 2}]}})
+        >>> # bad
         >>> list(client.db.collection.find()) == [{'a': 1}, {'a': 2}]
         True
 
@@ -1387,6 +1399,7 @@ class MockupDB(object):
         and replied to. Future matching requests skip the queue.
 
         >>> future = go(client.db.command, 'baz')
+        >>> # bad
         >>> responder = s.autoresponds('baz', {'key': 'value'})
         >>> future() == {'ok': 1, 'key': 'value'}
         True
@@ -1426,7 +1439,7 @@ class MockupDB(object):
         ...         print('logging: %r' % request)
         >>> responder = s.autoresponds(logger)
         >>> client.db.command('baz') == {'ok': 1, 'a': 2}
-        logging: Command({"baz": 1}, flags=SlaveOkay, namespace="db")
+        logging: OpMsg({"baz": 1, "$db": "db", "$readPreference": {"mode": "primaryPreferred"}}, namespace="db")
         True
 
         The synonym `subscribe` better expresses your intent if your handler
@@ -1929,7 +1942,7 @@ def interactive_server(port=27017, verbose=True, all_ok=False, name='MockupDB',
     server.autoresponds('whatsmyuri', you='localhost:12345')
     server.autoresponds({'getLog': 'startupWarnings'},
                         log=['hello from %s!' % name])
-    server.autoresponds(Command('buildInfo'), version='MockupDB ' + __version__)
-    server.autoresponds(Command('listCollections'))
+    server.autoresponds(OpMsg('buildInfo'), version='MockupDB ' + __version__)
+    server.autoresponds(OpMsg('listCollections'))
     server.autoresponds('replSetGetStatus', ok=0)
     return server

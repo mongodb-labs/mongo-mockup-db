@@ -49,18 +49,6 @@ does *not* match "ismaster".
 (Notice that `~Request.replies` returns True. This makes more advanced uses of
 `~MockupDB.autoresponds` easier, see the reference document.)
 
-Reply To Legacy Writes
-----------------------
-
-Send an unacknowledged OP_INSERT:
-
-   >>> from pymongo.write_concern import WriteConcern
-   >>> w0 = WriteConcern(w=0)
-   >>> collection = client.db.coll.with_options(write_concern=w0)
-   >>> collection.insert_one({'_id': 1})  # doctest: +ELLIPSIS
-   <pymongo.results.InsertOneResult object at ...>
-   >>> server.receives()
-   OpInsert({"_id": 1}, namespace="db.coll")
 
 Reply To Write Commands
 -----------------------
@@ -82,7 +70,7 @@ client's request to arrive on the main thread:
 
    >>> cmd = server.receives()
    >>> cmd
-   Command({"insert": "coll", "ordered": true, "documents": [{"_id": 1}]}, namespace="db")
+   OpMsg({"insert": "coll", "ordered": true, "$db": "db", "$readPreference": {"mode": "primary"}, "documents": [{"_id": 1}]}, namespace="db")
 
 (Note how MockupDB renders requests and replies as JSON, not Python.
 The chief differences are that "true" and "false" are lower-case, and the order
@@ -158,12 +146,12 @@ little loop:
    ...     try:
    ...         while server.running:
    ...             # Match queries most restrictive first.
-   ...             if server.got(Command('find', 'coll', filter={'a': {'$gt': 1}})):
+   ...             if server.got(OpMsg('find', 'coll', filter={'a': {'$gt': 1}})):
    ...                 server.reply(cursor={'id': 0, 'firstBatch':[{'a': 2}]})
    ...             elif server.got('break'):
    ...                 server.ok()
    ...                 break
-   ...             elif server.got(Command('find', 'coll')):
+   ...             elif server.got(OpMsg('find', 'coll')):
    ...                 server.reply(
    ...                     cursor={'id': 0, 'firstBatch':[{'a': 1}, {'a': 2}]})
    ...             else:
@@ -247,14 +235,14 @@ can assert that your application's requests match a particular pattern:
   >>> client = MongoClient(server.uri)
   >>> future = go(client.db.collection.insert, {'_id': 1})
   >>> # Assert the command name is "insert" and its parameter is "collection".
-  >>> request = server.receives(Command('insert', 'collection'))
+  >>> request = server.receives(OpMsg('insert', 'collection'))
   >>> request.ok()
   True
   >>> assert future()
 
 If the request did not match, MockupDB would raise an `AssertionError`.
 
-The arguments to `Command` above are an example of a message spec. The
+The arguments to `OpMsg` above are an example of a message spec. The
 pattern-matching rules are implemented in `Matcher`.
 Here are
 some more examples.
@@ -321,21 +309,10 @@ You can specify what request opcode to match:
   >>> m.matches(OpQuery, {'_id': 1})
   True
 
-Commands are queries on some database's "database.$cmd" namespace.
-They are specially prohibited from matching regular queries:
-
-  >>> Matcher(OpQuery).matches(Command)
-  False
-  >>> Matcher(Command).matches(Command)
-  True
-  >>> Matcher(OpQuery).matches(OpQuery)
-  True
-  >>> Matcher(Command).matches(OpQuery)
-  False
-
+Commands in MongoDB 3.6 and later use the OP_MSG wire protocol message.
 The command name is matched case-insensitively:
 
-  >>> Matcher(Command('ismaster')).matches(Command('IsMaster'))
+  >>> Matcher(OpMsg('ismaster')).matches(OpMsg('IsMaster'))
   True
 
 You can match properties specific to certain opcodes:
@@ -405,31 +382,27 @@ value if it is a number, otherwise interprets it as the first field of the reply
 document and assumes the value is 1:
 
   >>> import mockupdb
-  >>> mockupdb.make_reply()
-  OpReply()
-  >>> mockupdb.make_reply(0)
-  OpReply({"ok": 0})
-  >>> mockupdb.make_reply("foo")
-  OpReply({"foo": 1})
+  >>> mockupdb.make_op_msg_reply()
+  OpMsgReply()
+  >>> mockupdb.make_op_msg_reply(0)
+  OpMsgReply({"ok": 0})
+  >>> mockupdb.make_op_msg_reply("foo")
+  OpMsgReply({"foo": 1})
 
 You can pass a dict or OrderedDict of fields instead of using keyword arguments.
 This is best for fieldnames that are not valid Python identifiers:
 
-  >>> mockupdb.make_reply(OrderedDict([('ok', 0), ('$err', 'bad')]))
-  OpReply({"ok": 0, "$err": "bad"})
+  >>> mockupdb.make_op_msg_reply(OrderedDict([('ok', 0), ('$err', 'bad')]))
+  OpMsgReply({"ok": 0, "$err": "bad"})
 
 You can customize the OP_REPLY header flags with the "flags" keyword argument:
 
-  >>> r = mockupdb.make_reply(OrderedDict([('ok', 0), ('$err', 'bad')]),
-  ...                         flags=REPLY_FLAGS['QueryFailure'])
+  >>> r = mockupdb.make_op_msg_reply(OrderedDict([('ok', 0), ('$err', 'bad')]),
+  ...                                flags=OP_MSG_FLAGS['checksumPresent'])
   >>> repr(r)
-  'OpReply({"ok": 0, "$err": "bad"}, flags=QueryFailure)'
+  'OpMsgReply({"ok": 0, "$err": "bad"}, flags=checksumPresent)'
 
-The above logic, which simulates a query error in MongoDB before 3.2, is
-provided conveniently in `~Request.fail()`. This protocol is obsolete in MongoDB
-3.2+, which uses commands for all operations.
-
-Although these examples call `make_reply` explicitly, this is only to
+Although these examples call `make_op_msg_reply` explicitly, this is only to
 illustrate how replies are specified. Your code will pass these arguments to a
 `Request` method like `~Request.replies`.
 
@@ -455,24 +428,24 @@ Test what happens when a query fails:
 
    >>> cursor = collection.find().batch_size(1)
    >>> future = go(next, cursor)
-   >>> server.receives(Command('find', 'coll')).fail()
+   >>> server.receives(OpMsg('find', 'coll')).command_err()
    True
    >>> future()
    Traceback (most recent call last):
      ...
-   OperationFailure: database error: MockupDB query failure
+   OperationFailure: database error: MockupDB command failure
 
 You can simulate normal querying, too:
 
    >>> cursor = collection.find().batch_size(2)
    >>> future = go(list, cursor)
    >>> documents = [{'_id': 1}, {'x': 2}, {'foo': 'bar'}, {'beauty': True}]
-   >>> request = server.receives(Command('find', 'coll'))
+   >>> request = server.receives(OpMsg('find', 'coll'))
    >>> n = request['batchSize']
    >>> request.replies(cursor={'id': 123, 'firstBatch': documents[:n]})
    True
    >>> while True:
-   ...    getmore = server.receives(Command('getMore', 123))
+   ...    getmore = server.receives(OpMsg('getMore', 123))
    ...    n = getmore['batchSize']
    ...    if documents:
    ...        cursor_id = 123

@@ -135,7 +135,7 @@ class TestRequest(unittest.TestCase):
             request.assert_matches(Command('foo'))
 
 
-class TestLegacyWrites(unittest.TestCase):
+class TestUnacknowledgedWrites(unittest.TestCase):
     def setUp(self):
         self.server = MockupDB(auto_ismaster=True)
         self.server.run()
@@ -146,37 +146,48 @@ class TestLegacyWrites(unittest.TestCase):
 
     def test_insert_one(self):
         with going(self.collection.insert_one, {'_id': 1}):
-            self.server.receives(OpInsert({'_id': 1}, flags=0))
+            # The moreToCome flag = 2.
+            self.server.receives(
+                OpMsg('insert', 'collection', writeConcern={'w': 0}, flags=2))
 
     def test_insert_many(self):
         collection = self.collection.with_options(
             write_concern=WriteConcern(0))
 
-        flags = INSERT_FLAGS['ContinueOnError']
         docs = [{'_id': 1}, {'_id': 2}]
         with going(collection.insert_many, docs, ordered=False):
-            self.server.receives(OpInsert(docs, flags=flags))
+            self.server.receives(OpMsg(SON([
+                ('insert', 'collection'),
+                ('ordered', False),
+                ('writeConcern', {'w': 0})]), flags=2))
 
     def test_replace_one(self):
         with going(self.collection.replace_one, {}, {}):
-            self.server.receives(OpUpdate({}, {}, flags=0))
+            self.server.receives(OpMsg(SON([
+                ('update', 'collection'),
+                ('writeConcern', {'w': 0})
+            ]), flags=2))
 
     def test_update_many(self):
-        flags = UPDATE_FLAGS['MultiUpdate']
         with going(self.collection.update_many, {}, {'$unset': 'a'}):
-            update = self.server.receives(OpUpdate({}, {}, flags=flags))
-            self.assertEqual(2, update.flags)
+            self.server.receives(OpMsg(SON([
+                ('update', 'collection'),
+                ('ordered', True),
+                ('writeConcern', {'w': 0})
+            ]), flags=2))
 
     def test_delete_one(self):
-        flags = DELETE_FLAGS['SingleRemove']
         with going(self.collection.delete_one, {}):
-            delete = self.server.receives(OpDelete({}, flags=flags))
-            self.assertEqual(1, delete.flags)
+            self.server.receives(OpMsg(SON([
+                ('delete', 'collection'),
+                ('writeConcern', {'w': 0})
+            ]), flags=2))
 
     def test_delete_many(self):
         with going(self.collection.delete_many, {}):
-            delete = self.server.receives(OpDelete({}, flags=0))
-            self.assertEqual(0, delete.flags)
+            self.server.receives(OpMsg(SON([
+                ('delete', 'collection'),
+                ('writeConcern', {'w': 0})]), flags=2))
 
 
 class TestMatcher(unittest.TestCase):
