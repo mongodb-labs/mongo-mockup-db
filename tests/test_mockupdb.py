@@ -25,8 +25,7 @@ from pymongo import MongoClient, message, WriteConcern
 
 from mockupdb import (_bson as mockup_bson, go, going,
                       Command, CommandBase, Matcher, MockupDB, Request,
-                      OpDelete, OpInsert, OpMsg, OpQuery, OpUpdate,
-                      DELETE_FLAGS, INSERT_FLAGS, UPDATE_FLAGS, QUERY_FLAGS)
+                      OpInsert, OpMsg, OpQuery, QUERY_FLAGS)
 from tests import unittest  # unittest2 on Python 2.6.
 
 
