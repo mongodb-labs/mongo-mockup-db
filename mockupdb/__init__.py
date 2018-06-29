@@ -22,7 +22,6 @@ __email__ = 'jesse@mongodb.com'
 __version__ = '1.4.0.dev0'
 
 import atexit
-import collections
 import contextlib
 import errno
 import functools
@@ -44,6 +43,11 @@ try:
     from queue import Queue, Empty
 except ImportError:
     from Queue import Queue, Empty
+
+try:
+    from collections.abc import Mapping
+except:
+    from collections import Mapping
 
 try:
     from collections import OrderedDict
@@ -383,7 +387,7 @@ class Request(object):
         self._verbose = self._server and self._server.verbose
         self._server_port = kwargs.pop('server_port', None)
         self._docs = make_docs(*args, **kwargs)
-        if not all(isinstance(doc, collections.Mapping) for doc in self._docs):
+        if not all(isinstance(doc, Mapping) for doc in self._docs):
             raise_args_err()
 
     @property
@@ -729,7 +733,7 @@ class OpQuery(Request):
 
     def __init__(self, *args, **kwargs):
         fields = kwargs.pop('fields', None)
-        if fields is not None and not isinstance(fields, collections.Mapping):
+        if fields is not None and not isinstance(fields, Mapping):
             raise_args_err()
         self._fields = fields
         self._num_to_skip = kwargs.pop('num_to_skip', None)
@@ -1724,7 +1728,7 @@ def make_docs(*args, **kwargs):
 
     if isinstance(args[0], (list, tuple)):
         # Send a batch: OpReply([{'a': 1}, {'a': 2}]).
-        if not all(isinstance(doc, (OpReply, collections.Mapping))
+        if not all(isinstance(doc, (OpReply, Mapping))
                    for doc in args[0]):
             raise_args_err('each doc must be a dict:')
         if kwargs:
@@ -1748,7 +1752,7 @@ def make_docs(*args, **kwargs):
         raise_args_err(err_msg, ValueError)
 
     # Send a batch as varargs: OpReply({'a': 1}, {'a': 2}).
-    if not all(isinstance(doc, (OpReply, collections.Mapping)) for doc in args):
+    if not all(isinstance(doc, (OpReply, Mapping)) for doc in args):
         raise_args_err('each doc must be a dict')
 
     return args
