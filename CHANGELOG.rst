@@ -3,6 +3,11 @@
 Changelog
 =========
 
+Next Release
+------------
+
+Fix an inadvertent dependency on PyMongo.
+
 1.4.0 (2018-06-29)
 ------------------
 

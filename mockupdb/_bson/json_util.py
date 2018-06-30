@@ -122,9 +122,10 @@ if sys.version_info[:2] == (2, 6):
 else:
     import json
 
-from pymongo.errors import ConfigurationError
+class ConfigurationError(Exception):
+    pass
 
-import bson
+import mockupdb._bson as bson
 from mockupdb._bson import EPOCH_AWARE, EPOCH_NAIVE, RE_TYPE, SON
 from mockupdb._bson.binary import (Binary, JAVA_LEGACY, CSHARP_LEGACY,
                                    OLD_UUID_SUBTYPE,
