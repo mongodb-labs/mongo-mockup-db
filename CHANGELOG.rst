@@ -3,10 +3,10 @@
 Changelog
 =========
 
-Next Release
-------------
+1.4.1 (2018-06-30)
+------------------
 
-Fix an inadvertent dependency on PyMongo.
+Fix an inadvertent dependency on PyMongo, which broke the docs build.
 
 1.4.0 (2018-06-29)
 ------------------
