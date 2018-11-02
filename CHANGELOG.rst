@@ -11,7 +11,10 @@ Support for Unix domain paths with ``uds_path`` parameter.
 The ``interactive_server()`` function now prepares the server to autorespond to
 the ``getFreeMonitoringStatus`` command from the mongo shell.
 
-Fix an inadvertent dependency on PyMongo.
+1.4.1 (2018-06-30)
+------------------
+
+Fix an inadvertent dependency on PyMongo, which broke the docs build.
 
 1.4.0 (2018-06-29)
 ------------------
