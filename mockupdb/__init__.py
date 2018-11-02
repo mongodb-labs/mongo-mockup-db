@@ -1945,4 +1945,5 @@ def interactive_server(port=27017, verbose=True, all_ok=False, name='MockupDB',
     server.autoresponds(OpMsg('buildInfo'), version='MockupDB ' + __version__)
     server.autoresponds(OpMsg('listCollections'))
     server.autoresponds('replSetGetStatus', ok=0)
+    server.autoresponds('getFreeMonitoringStatus', ok=0)
     return server
