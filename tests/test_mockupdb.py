@@ -4,8 +4,10 @@
 """Test MockupDB."""
 
 import contextlib
+import os
 import ssl
 import sys
+import tempfile
 
 if sys.version_info[0] < 3:
     from io import BytesIO as StringIO
@@ -317,6 +319,28 @@ class TestMockupDB(unittest.TestCase):
         ismaster = MongoClient(server.uri).admin.command('isMaster')
         self.assertEqual(ismaster['minWireVersion'], 1)
         self.assertEqual(ismaster['maxWireVersion'], 42)
+
+    @unittest.skipIf(sys.platform == 'win32', 'Windows')
+    def test_unix_domain_socket(self):
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.sock')
+        tmp.close()
+        server = MockupDB(auto_ismaster={'maxWireVersion': 3},
+                          uds_path=tmp.name)
+        server.run()
+        self.assertTrue(server.uri.endswith('.sock'),
+                        'Expected URI "%s" to end with ".sock"' % (server.uri,))
+        self.assertEqual(server.host, tmp.name)
+        self.assertEqual(server.port, 0)
+        self.assertEqual(server.address, (tmp.name, 0))
+        self.assertEqual(server.address_string, tmp.name)
+        client = MongoClient(server.uri)
+        with going(client.test.command, {'foo': 1}) as future:
+            server.receives().ok()
+
+        response = future()
+        self.assertEqual(1, response['ok'])
+        server.stop()
+        self.assertFalse(os.path.exists(tmp.name))
 
 
 class TestResponse(unittest.TestCase):

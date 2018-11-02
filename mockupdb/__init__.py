@@ -59,6 +59,12 @@ try:
 except ImportError:
     from cStringIO import StringIO
 
+try:
+    from urllib.parse import quote_plus
+except ImportError:
+    # Python 2
+    from urllib import quote_plus
+
 # Pure-Python bson lib vendored in from PyMongo 3.0.3.
 from mockupdb import _bson
 import mockupdb._bson.codec_options as _codec_options
@@ -432,7 +438,12 @@ class Request(object):
     @property
     def client_port(self):
         """Client connection's TCP port."""
-        return self._client.getpeername()[1]
+        address = self._client.getpeername()
+        if isinstance(address, tuple):
+            return address[1]
+
+        # Maybe a Unix domain socket connection.
+        return 0
 
     @property
     def server(self):
@@ -1194,11 +1205,24 @@ class MockupDB(object):
         if `auto_ismaster` is True, default 0.
       - `max_wire_version`: the maxWireVersion to include in ismaster responses
         if `auto_ismaster` is True, default 6.
+      - `uds_path`: a Unix domain socket path. MockupDB will attempt to delete
+        the path if it already exists.
     """
     def __init__(self, port=None, verbose=False,
                  request_timeout=10, auto_ismaster=None,
-                 ssl=False, min_wire_version=0, max_wire_version=6):
-        self._address = ('localhost', port)
+                 ssl=False, min_wire_version=0, max_wire_version=6,
+                 uds_path=None):
+        if port is not None and uds_path is not None:
+            raise TypeError(
+                ("You can't pass port=%s and uds_path=%s,"
+                 " pass only one or neither") % (port, uds_path))
+
+        self._uds_path = uds_path
+        if uds_path:
+            self._address = (uds_path, 0)
+        else:
+            self._address = ('localhost', port)
+
         self._verbose = verbose
         self._label = None
         self._ssl = ssl
@@ -1231,8 +1255,12 @@ class MockupDB(object):
 
     @_synchronized
     def run(self):
-        """Begin serving. Returns the bound port."""
-        self._listening_sock, self._address = bind_socket(self._address)
+        """Begin serving. Returns the bound port, or 0 for domain socket."""
+        self._listening_sock, self._address = (
+            bind_domain_socket(self._address)
+            if self._uds_path
+            else bind_tcp_socket(self._address))
+
         if self._ssl:
             certfile = os.path.join(os.path.dirname(__file__), 'server.pem')
             self._listening_sock = _ssl.wrap_socket(
@@ -1265,6 +1293,12 @@ class MockupDB(object):
         with self._unlock():
             for thread in threads:
                 thread.join(10)
+
+        if self._uds_path:
+            try:
+                os.unlink(self._uds_path)
+            except OSError:
+                pass
 
     def receives(self, *args, **kwargs):
         """Pop the next `Request` and assert it matches.
@@ -1481,7 +1515,7 @@ class MockupDB(object):
     @property
     def address_string(self):
         """The listening "host:port"."""
-        return '%s:%d' % self._address
+        return format_addr(self._address)
 
     @property
     def host(self):
@@ -1496,8 +1530,10 @@ class MockupDB(object):
     @property
     def uri(self):
         """Connection string to pass to `~pymongo.mongo_client.MongoClient`."""
-        assert self.host and self.port
-        uri = 'mongodb://%s:%s' % self._address
+        if self._uds_path:
+            uri = 'mongodb://%s' % (quote_plus(self._uds_path),)
+        else:
+            uri = 'mongodb://%s' % (format_addr(self._address),)
         return uri + '/?ssl=true' if self._ssl else uri
 
     @property
@@ -1555,7 +1591,7 @@ class MockupDB(object):
                 if select.select([self._listening_sock.fileno()], [], [], 1):
                     client, client_addr = self._listening_sock.accept()
                     client.setblocking(True)
-                    self._log('connection from %s:%s' % client_addr)
+                    self._log('connection from %s' % format_addr(client_addr))
                     server_thread = threading.Thread(
                         target=functools.partial(
                             self._server_loop, client, client_addr))
@@ -1611,7 +1647,7 @@ class MockupDB(object):
                 traceback.print_exc()
                 break
 
-        self._log('disconnected: %s:%d' % client_addr)
+        self._log('disconnected: %s' % format_addr(client_addr))
         client.close()
 
     def _log(self, msg):
@@ -1642,10 +1678,24 @@ class MockupDB(object):
     __next__ = next
 
     def __repr__(self):
+        if self._uds_path:
+            return 'MockupDB(uds_path=%s)' % (self._uds_path,)
+
         return 'MockupDB(%s, %s)' % self._address
 
 
-def bind_socket(address):
+def format_addr(address):
+    """Turn a TCP or Unix domain socket address into a string."""
+    if isinstance(address, tuple):
+        if address[1]:
+            return '%s:%d' % address
+        else:
+            return address[0]
+
+    return address
+
+
+def bind_tcp_socket(address):
     """Takes (host, port) and returns (socket_object, (host, port)).
 
     If the passed-in port is None, bind an unused port and return it.
@@ -1667,6 +1717,20 @@ def bind_socket(address):
         return sock, (host, bound_port)
 
     raise socket.error('could not bind socket')
+
+
+def bind_domain_socket(address):
+    """Takes (socket path, 0) and returns (socket_object, (path, 0))."""
+    path, _ = address
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+    sock = socket.socket(socket.AF_UNIX)
+    sock.bind(path)
+    sock.listen(128)
+    return sock, (path, 0)
 
 
 OPCODES = {OP_MSG: OpMsg,
@@ -1923,7 +1987,7 @@ def raise_args_err(message='bad arguments', error_class=TypeError):
 
 
 def interactive_server(port=27017, verbose=True, all_ok=False, name='MockupDB',
-                       ssl=False):
+                       ssl=False, uds_path=None):
     """A `MockupDB` that the mongo shell can connect to.
 
     Call `~.MockupDB.run` on the returned server, and clean it up with
@@ -1932,11 +1996,15 @@ def interactive_server(port=27017, verbose=True, all_ok=False, name='MockupDB',
     If ``all_ok`` is True, replies {ok: 1} to anything unmatched by a specific
     responder.
     """
+    if uds_path is not None:
+        port = None
+
     server = MockupDB(port=port,
                       verbose=verbose,
                       request_timeout=int(1e6),
                       ssl=ssl,
-                      auto_ismaster=True)
+                      auto_ismaster=True,
+                      uds_path=uds_path)
     if all_ok:
         server.autoresponds({})
     server.autoresponds('whatsmyuri', you='localhost:12345')

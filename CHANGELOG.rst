@@ -6,6 +6,8 @@ Changelog
 Next Release
 ------------
 
+Support for Unix domain paths with ``uds_path`` parameter.
+
 The ``interactive_server()`` function now prepares the server to autorespond to
 the ``getFreeMonitoringStatus`` command from the mongo shell.
 
