@@ -3,8 +3,8 @@
 Changelog
 =========
 
-Next Release
-------------
+1.5.0 (2018-11-02)
+------------------
 
 Support for Unix domain paths with ``uds_path`` parameter.
 
