@@ -19,15 +19,13 @@ try:
 except ImportError:
     from Queue import Queue
 
-# Tests depend on PyMongo's BSON implementation, but MockupDB itself does not.
 from bson import (Binary, Code, DBRef, Decimal128, MaxKey, MinKey, ObjectId,
                   Regex, SON, Timestamp)
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, message, WriteConcern
 
-from mockupdb import (_bson as mockup_bson, go, going,
-                      Command, CommandBase, Matcher, MockupDB, Request,
-                      OpInsert, OpMsg, OpQuery, QUERY_FLAGS)
+from mockupdb import (go, going, Command, CommandBase, Matcher, MockupDB,
+                      Request, OpInsert, OpMsg, OpQuery, QUERY_FLAGS)
 from tests import unittest  # unittest2 on Python 2.6.
 
 
@@ -211,17 +209,17 @@ class TestMatcher(unittest.TestCase):
         _id = '5a918f9fa08bff9c7688d3e1'
 
         for a, b in [
-            (Binary(b'foo'), mockup_bson.Binary(b'foo')),
-            (Code('foo'), mockup_bson.Code('foo')),
-            (Code('foo', {'x': 1}), mockup_bson.Code('foo', {'x': 1})),
-            (DBRef('coll', 1), mockup_bson.DBRef('coll', 1)),
-            (DBRef('coll', 1, 'db'), mockup_bson.DBRef('coll', 1, 'db')),
-            (Decimal128('1'), mockup_bson.Decimal128('1')),
-            (MaxKey(), mockup_bson.MaxKey()),
-            (MinKey(), mockup_bson.MinKey()),
-            (ObjectId(_id), mockup_bson.ObjectId(_id)),
-            (Regex('foo', 'i'), mockup_bson.Regex('foo', 'i')),
-            (Timestamp(1, 2), mockup_bson.Timestamp(1, 2)),
+            (Binary(b'foo'), Binary(b'foo')),
+            (Code('foo'), Code('foo')),
+            (Code('foo', {'x': 1}), Code('foo', {'x': 1})),
+            (DBRef('coll', 1), DBRef('coll', 1)),
+            (DBRef('coll', 1, 'db'), DBRef('coll', 1, 'db')),
+            (Decimal128('1'), Decimal128('1')),
+            (MaxKey(), MaxKey()),
+            (MinKey(), MinKey()),
+            (ObjectId(_id), ObjectId(_id)),
+            (Regex('foo', 'i'), Regex('foo', 'i')),
+            (Timestamp(1, 2), Timestamp(1, 2)),
         ]:
             # Basic case.
             self.assertTrue(

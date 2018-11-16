@@ -65,12 +65,10 @@ except ImportError:
     # Python 2
     from urllib import quote_plus
 
-# Pure-Python bson lib vendored in from PyMongo 3.0.3.
-from mockupdb import _bson
-import mockupdb._bson.codec_options as _codec_options
-import mockupdb._bson.json_util as _json_util
+import bson
+from bson import codec_options, json_util
 
-CODEC_OPTIONS = _codec_options.CodecOptions(document_class=OrderedDict)
+CODEC_OPTIONS = codec_options.CodecOptions(document_class=OrderedDict)
 
 PY3 = sys.version_info[0] == 3
 if PY3:
@@ -524,8 +522,8 @@ class Request(object):
                         return False
                 elif not _bson_values_equal(value, other_doc.get(key, None)):
                     return False
-            if isinstance(doc, (OrderedDict, _bson.SON)):
-                if not isinstance(other_doc, (OrderedDict, _bson.SON)):
+            if isinstance(doc, (OrderedDict, bson.SON)):
+                if not isinstance(other_doc, (OrderedDict, bson.SON)):
                     raise TypeError(
                         "Can't compare ordered and unordered document types:"
                         " %r, %r" % (doc, other_doc))
@@ -638,7 +636,7 @@ class OpMsg(CommandBase):
                 first_payload_type,))
 
         # Parse the initial document and add the optional payload type 1.
-        payload_document = _bson.decode_all(msg[pos:pos+first_payload_size],
+        payload_document = bson.decode_all(msg[pos:pos+first_payload_size],
                                             CODEC_OPTIONS)[0]
         pos += first_payload_size
         if len(msg) != pos:
@@ -652,7 +650,7 @@ class OpMsg(CommandBase):
                 raise ValueError('More than two OP_MSG sections unsupported')
             pos += 4
             identifier, pos = _get_c_string(msg, pos)
-            documents = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
+            documents = bson.decode_all(msg[pos:], CODEC_OPTIONS)
             payload_document[identifier] = documents
 
         database = payload_document['$db']
@@ -724,7 +722,7 @@ class OpQuery(Request):
         pos += 4
         num_to_return, = _UNPACK_INT(msg[pos:pos + 4])
         pos += 4
-        docs = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
+        docs = bson.decode_all(msg[pos:], CODEC_OPTIONS)
         if is_command:
             assert len(docs) == 1
             command_ns = namespace[:-len('.$cmd')]
@@ -891,7 +889,7 @@ class OpInsert(_LegacyWrite):
         """
         flags, = _UNPACK_INT(msg[:4])
         namespace, pos = _get_c_string(msg, 4)
-        docs = _bson.decode_all(msg[pos:], CODEC_OPTIONS)
+        docs = bson.decode_all(msg[pos:], CODEC_OPTIONS)
         return cls(*docs, namespace=namespace, flags=flags, _client=client,
                    request_id=request_id, _server=server)
 
@@ -911,7 +909,7 @@ class OpUpdate(_LegacyWrite):
         # First 4 bytes of OP_UPDATE are "reserved".
         namespace, pos = _get_c_string(msg, 4)
         flags, = _UNPACK_INT(msg[pos:pos + 4])
-        docs = _bson.decode_all(msg[pos + 4:], CODEC_OPTIONS)
+        docs = bson.decode_all(msg[pos + 4:], CODEC_OPTIONS)
         return cls(*docs, namespace=namespace, flags=flags, _client=client,
                    request_id=request_id, _server=server)
 
@@ -931,7 +929,7 @@ class OpDelete(_LegacyWrite):
         # First 4 bytes of OP_DELETE are "reserved".
         namespace, pos = _get_c_string(msg, 4)
         flags, = _UNPACK_INT(msg[pos:pos + 4])
-        docs = _bson.decode_all(msg[pos + 4:], CODEC_OPTIONS)
+        docs = bson.decode_all(msg[pos + 4:], CODEC_OPTIONS)
         return cls(*docs, namespace=namespace, flags=flags, _client=client,
                    request_id=request_id, _server=server)
 
@@ -1002,7 +1000,7 @@ class OpReply(Reply):
         response_to = request.request_id
 
         data = b''.join([flags, cursor_id, starting_from, number_returned])
-        data += b''.join([_bson.BSON.encode(doc) for doc in self._docs])
+        data += b''.join([bson.BSON.encode(doc) for doc in self._docs])
 
         message = struct.pack("<i", 16 + len(data))
         message += struct.pack("<i", reply_id)
@@ -1042,7 +1040,7 @@ class OpMsgReply(Reply):
         """Take a `Request` and return an OP_MSG message as bytes."""
         flags = struct.pack("<I", self._flags)
         payload_type = struct.pack("<b", 0)
-        payload_data = _bson.BSON.encode(self.doc)
+        payload_data = bson.BSON.encode(self.doc)
         data = b''.join([flags, payload_type, payload_data])
 
         reply_id = random.randint(0, 1000000)
@@ -1913,7 +1911,7 @@ def docs_repr(*args):
     >>> print(docs_repr(OrderedDict([(u'ts', now)])))
     {"ts": {"$date": 123456000}}
     >>>
-    >>> oid = _bson.ObjectId(b'123456781234567812345678')
+    >>> oid = bson.ObjectId(b'123456781234567812345678')
     >>> print(docs_repr(OrderedDict([(u'oid', oid)])))
     {"oid": {"$oid": "123456781234567812345678"}}
     """
@@ -1921,7 +1919,7 @@ def docs_repr(*args):
     for doc_idx, doc in enumerate(args):
         if doc_idx > 0:
             sio.write(u', ')
-        sio.write(text_type(_json_util.dumps(doc)))
+        sio.write(text_type(json_util.dumps(doc)))
     return sio.getvalue()
 
 

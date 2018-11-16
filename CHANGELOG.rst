@@ -3,6 +3,14 @@
 Changelog
 =========
 
+Next Release
+------------
+
+Remove vendored BSON library. Instead, require PyMongo and use its BSON library.
+This avoids surprising problems where a BSON type created with PyMongo does not
+appear equal to one created with MockupDB, and it avoids the occasional need to
+update the vendored code to support new BSON features.
+
 1.5.0 (2018-11-02)
 ------------------
 
