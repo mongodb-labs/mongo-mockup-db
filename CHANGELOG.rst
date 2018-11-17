@@ -3,8 +3,8 @@
 Changelog
 =========
 
-Next Release
-------------
+1.6.0 (2018-11-16)
+------------------
 
 Remove vendored BSON library. Instead, require PyMongo and use its BSON library.
 This avoids surprising problems where a BSON type created with PyMongo does not
