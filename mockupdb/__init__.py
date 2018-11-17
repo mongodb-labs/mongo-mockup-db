@@ -288,49 +288,6 @@ def _get_c_string(data, position):
     return _utf_8_decode(data[position:end], None, True)[0], end + 1
 
 
-def _bson_values_equal(a, b):
-    # Check if values are either from our vendored bson or PyMongo's bson.
-    for value in (a, b):
-        if not hasattr(value, '_type_marker'):
-            # Normal equality.
-            return a == b
-
-    def marker(obj):
-        return getattr(obj, '_type_marker', None)
-
-    if marker(a) != marker(b):
-        return a == b
-
-    # Instances of Binary, ObjectId, etc. from our vendored bson don't equal
-    # instances of PyMongo's bson classes that users pass in as message specs,
-    # since isinstance() fails. Reimplement equality checks for each class.
-    key_fn = {
-        # Binary.
-        5: lambda obj: (obj.subtype, bytes(obj)),
-        # ObjectId.
-        7: lambda obj: obj.binary,
-        # Regex.
-        11: lambda obj: (obj.pattern, obj.flags),
-        # Code.
-        13: lambda obj: (obj.scope, str(obj)),
-        # Timestamp.
-        17: lambda obj: (obj.time, obj.inc),
-        # Decimal128.
-        19: lambda obj: obj.bid,
-        # DBRef.
-        100: lambda obj: (obj.database, obj.collection, obj.id),
-        # MaxKey.
-        127: lambda obj: 127,
-        # MinKey.
-        255: lambda obj: 255,
-    }.get(marker(a))
-
-    if key_fn:
-        return key_fn(a) == key_fn(b)
-
-    return a == b
-
-
 class _PeekableQueue(Queue):
     """Only safe from one consumer thread at a time."""
     _NO_ITEM = object()
@@ -520,7 +477,7 @@ class Request(object):
                 if value is absent:
                     if key in other_doc:
                         return False
-                elif not _bson_values_equal(value, other_doc.get(key, None)):
+                elif value != other_doc.get(key, None):
                     return False
             if isinstance(doc, (OrderedDict, bson.SON)):
                 if not isinstance(other_doc, (OrderedDict, bson.SON)):
@@ -604,7 +561,7 @@ class CommandBase(Request):
         if items and other_items:
             if items[0][0].lower() != other_items[0][0].lower():
                 return False
-            if not _bson_values_equal(items[0][1], other_items[0][1]):
+            if items[0][1] != other_items[0][1]:
                 return False
         return super(CommandBase, self)._matches_docs(
             [OrderedDict(items[1:])],
