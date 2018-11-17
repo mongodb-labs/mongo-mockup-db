@@ -519,7 +519,7 @@ Client discovers it quickly if there's a pending operation:
 
 .. _PyMongo: https://pypi.python.org/pypi/pymongo/
 
-.. _MongoDB Wire Protocol: http://docs.mongodb.org/meta-driver/latest/legacy/mongodb-wire-protocol/
+.. _MongoDB Wire Protocol: https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/
 
 .. _serverStatus: http://docs.mongodb.org/manual/reference/server-status/
 

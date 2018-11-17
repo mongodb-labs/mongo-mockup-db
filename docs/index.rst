@@ -34,4 +34,4 @@ Indices and tables
 
 Image Credit: `gnuckx <https://www.flickr.com/photos/34409164@N06/4708707234/>`_
 
-.. _MongoDB Wire Protocol: http://docs.mongodb.org/meta-driver/latest/legacy/mongodb-wire-protocol/
+.. _MongoDB Wire Protocol: https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/
