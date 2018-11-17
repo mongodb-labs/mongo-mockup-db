@@ -75,6 +75,7 @@ if PY3:
     string_type = str
     text_type = str
 
+
     def reraise(exctype, value, trace=None):
         raise exctype(str(value)).with_traceback(trace)
 else:
@@ -82,10 +83,9 @@ else:
     text_type = unicode
 
     # "raise x, y, z" raises SyntaxError in Python 3.
-    exec("""def reraise(exctype, value, trace=None):
+    exec ("""def reraise(exctype, value, trace=None):
     raise exctype, str(value), trace
 """)
-
 
 __all__ = [
     'MockupDB', 'go', 'going', 'Future', 'wait_until', 'interactive_server',
@@ -125,7 +125,7 @@ def go(fn, *args, **kwargs):
     'return value'
     """
     if not callable(fn):
-        raise TypeError('go() requires a function, not %r' % (fn, ))
+        raise TypeError('go() requires a function, not %r' % (fn,))
     result = [None]
     error = []
 
@@ -536,7 +536,7 @@ class CommandBase(Request):
     is_command = True
 
     # Check command name case-insensitively.
-    _non_matched_attrs = Request._non_matched_attrs + ('command_name', )
+    _non_matched_attrs = Request._non_matched_attrs + ('command_name',)
 
     @property
     def command_name(self):
@@ -583,9 +583,9 @@ class OpMsg(CommandBase):
         """
         flags, = _UNPACK_UINT(msg[:4])
         pos = 4
-        first_payload_type, = _UNPACK_BYTE(msg[pos:pos+1])
+        first_payload_type, = _UNPACK_BYTE(msg[pos:pos + 1])
         pos += 1
-        first_payload_size, = _UNPACK_INT(msg[pos:pos+4])
+        first_payload_size, = _UNPACK_INT(msg[pos:pos + 4])
         if flags != 0 and flags != 2:
             raise ValueError('OP_MSG flag must be 0 or 2 not %r' % (flags,))
         if first_payload_type != 0:
@@ -593,16 +593,16 @@ class OpMsg(CommandBase):
                 first_payload_type,))
 
         # Parse the initial document and add the optional payload type 1.
-        payload_document = bson.decode_all(msg[pos:pos+first_payload_size],
-                                            CODEC_OPTIONS)[0]
+        payload_document = bson.decode_all(msg[pos:pos + first_payload_size],
+                                           CODEC_OPTIONS)[0]
         pos += first_payload_size
         if len(msg) != pos:
-            payload_type, = _UNPACK_BYTE(msg[pos:pos+1])
+            payload_type, = _UNPACK_BYTE(msg[pos:pos + 1])
             pos += 1
             if payload_type != 1:
                 raise ValueError('Second OP_MSG payload type must be 1 not %r'
                                  % (payload_type,))
-            section_size, = _UNPACK_INT(msg[pos:pos+4])
+            section_size, = _UNPACK_INT(msg[pos:pos + 4])
             if len(msg) != pos + section_size:
                 raise ValueError('More than two OP_MSG sections unsupported')
             pos += 4
@@ -650,7 +650,7 @@ class OpMsg(CommandBase):
         else:
             if len(reply.docs) > 1:
                 raise ValueError('OP_MSG reply with multiple documents: %s'
-                                 % (reply.docs, ))
+                                 % (reply.docs,))
             reply.doc.setdefault('ok', 1)
         super(OpMsg, self)._replies(reply)
 
@@ -746,7 +746,7 @@ class Command(CommandBase, OpQuery):
         else:
             if len(reply.docs) > 1:
                 raise ValueError('Command reply with multiple documents: %s'
-                                 % (reply.docs, ))
+                                 % (reply.docs,))
             reply.doc.setdefault('ok', 1)
         super(Command, self)._replies(reply)
 
@@ -764,6 +764,7 @@ class Command(CommandBase, OpQuery):
 
 class OpGetMore(Request):
     """An OP_GET_MORE the client executes on the server."""
+
     @classmethod
     def unpack(cls, msg, client, server, request_id):
         """Parse message and return an `OpGetMore`.
@@ -798,6 +799,7 @@ class OpGetMore(Request):
 
 class OpKillCursors(Request):
     """An OP_KILL_CURSORS the client executes on the server."""
+
     @classmethod
     def unpack(cls, msg, client, server, _):
         """Parse message and return an `OpKillCursors`.
@@ -810,7 +812,7 @@ class OpKillCursors(Request):
         cursor_ids = []
         pos = 8
         for _ in range(num_of_cursor_ids):
-            cursor_ids.append(_UNPACK_INT(msg[pos:pos+4])[0])
+            cursor_ids.append(_UNPACK_INT(msg[pos:pos + 4])[0])
             pos += 4
         return OpKillCursors(_client=client, cursor_ids=cursor_ids,
                              _server=server)
@@ -893,6 +895,7 @@ class OpDelete(_LegacyWrite):
 
 class Reply(object):
     """A reply from `MockupDB` to the client."""
+
     def __init__(self, *args, **kwargs):
         self._flags = kwargs.pop('flags', 0)
         self._docs = make_docs(*args, **kwargs)
@@ -922,6 +925,7 @@ class Reply(object):
 
 class OpReply(Reply):
     """An OP_REPLY reply from `MockupDB` to the client."""
+
     def __init__(self, *args, **kwargs):
         self._cursor_id = kwargs.pop('cursor_id', 0)
         self._starting_from = kwargs.pop('starting_from', 0)
@@ -968,6 +972,7 @@ class OpReply(Reply):
 
 class OpMsgReply(Reply):
     """A OP_MSG reply from `MockupDB` to the client."""
+
     def __init__(self, *args, **kwargs):
         super(OpMsgReply, self).__init__(*args, **kwargs)
         assert len(self._docs) <= 1, 'OpMsgReply can only have one document'
@@ -1029,6 +1034,7 @@ class Matcher(object):
     and by `~MockupDB.got` to test if it did and return ``True`` or ``False``.
     Used by `.autoresponds` to match requests with autoresponses.
     """
+
     def __init__(self, *args, **kwargs):
         self._kwargs = kwargs
         self._prototype = make_prototype_request(*args, **kwargs)
@@ -1069,6 +1075,7 @@ class Matcher(object):
 
 def _synchronized(meth):
     """Call method while holding a lock."""
+
     @functools.wraps(meth)
     def wrapper(self, *args, **kwargs):
         with self._lock:
@@ -1111,7 +1118,7 @@ class _AutoResponder(object):
                 # ourselves in __init__.
                 request.replies(*self._args, **self._kwargs)
                 return True
-            
+
     def cancel(self):
         """Stop autoresponding."""
         self._server.cancel_responder(self)
@@ -1163,6 +1170,7 @@ class MockupDB(object):
       - `uds_path`: a Unix domain socket path. MockupDB will attempt to delete
         the path if it already exists.
     """
+
     def __init__(self, port=None, verbose=False,
                  request_timeout=10, auto_ismaster=None,
                  ssl=False, min_wire_version=0, max_wire_version=6,
@@ -1456,7 +1464,7 @@ class MockupDB(object):
 
     subscribe = autoresponds
     """Synonym for `.autoresponds`."""
-    
+
     @_synchronized
     def cancel_responder(self, responder):
         """Cancel a responder that was registered with `autoresponds`."""
@@ -1560,7 +1568,7 @@ class MockupDB(object):
                     server_thread.start()
             except socket.error as error:
                 if error.errno not in (
-                        errno.EAGAIN, errno.EBADF, errno.EWOULDBLOCK):
+                    errno.EAGAIN, errno.EBADF, errno.EWOULDBLOCK):
                     raise
             except select.error as error:
                 if error.args[0] == errno.EBADF:
