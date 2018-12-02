@@ -3,8 +3,8 @@
 Changelog
 =========
 
-Next Release
-------------
+1.7.0 (2018-12-02)
+------------------
 
 Improve datetime support in match expressions. Python datetimes have microsecond
 precision but BSON only has milliseconds, so expressions like this always
