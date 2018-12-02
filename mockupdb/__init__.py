@@ -23,6 +23,7 @@ __version__ = '1.7.0.dev0'
 
 import atexit
 import contextlib
+import datetime
 import errno
 import functools
 import inspect
@@ -312,6 +313,19 @@ class _PeekableQueue(Queue):
             return Queue.get(self, block, timeout)
 
 
+def _ismap(obj):
+    return isinstance(obj, Mapping)
+
+
+def _islist(obj):
+    return isinstance(obj, list)
+
+
+def _dt_rounded(dt):
+    """Python datetimes have microsecond precision, BSON only milliseconds."""
+    return dt.replace(microsecond=dt.microsecond - dt.microsecond % 1000)
+
+
 class Request(object):
     """Base class for `Command`, `OpMsg`, and so on.
 
@@ -348,7 +362,7 @@ class Request(object):
         self._verbose = self._server and self._server.verbose
         self._server_port = kwargs.pop('server_port', None)
         self._docs = make_docs(*args, **kwargs)
-        if not all(isinstance(doc, Mapping) for doc in self._docs):
+        if not all(_ismap(doc) for doc in self._docs):
             raise_args_err()
 
     @property
@@ -471,23 +485,56 @@ class Request(object):
 
     def _matches_docs(self, docs, other_docs):
         """Overridable method."""
-        for i, doc in enumerate(docs):
-            other_doc = other_docs[i]
-            for key, value in doc.items():
-                if value is absent:
-                    if key in other_doc:
-                        return False
-                elif value != other_doc.get(key, None):
+        for doc, other_doc in zip(docs, other_docs):
+            if not self._match_map(doc, other_doc):
+                return False
+
+        return True
+
+    def _match_map(self, doc, other_doc):
+        for key, val in doc.items():
+            if val is absent:
+                if key in other_doc:
                     return False
-            if isinstance(doc, (OrderedDict, bson.SON)):
-                if not isinstance(other_doc, (OrderedDict, bson.SON)):
-                    raise TypeError(
-                        "Can't compare ordered and unordered document types:"
-                        " %r, %r" % (doc, other_doc))
-                keys = [key for key, value in doc.items()
-                        if value is not absent]
-                if not seq_match(keys, list(other_doc.keys())):
-                    return False
+            elif not self._match_val(val, other_doc.get(key, None)):
+                return False
+
+        if isinstance(doc, (OrderedDict, bson.SON)):
+            if not isinstance(other_doc, (OrderedDict, bson.SON)):
+                raise TypeError(
+                    "Can't compare ordered and unordered document types:"
+                    " %r, %r" % (doc, other_doc))
+            keys = [key for key, val in doc.items()
+                    if val is not absent]
+            if not seq_match(keys, list(other_doc.keys())):
+                return False
+
+        return True
+
+    def _match_list(self, lst, other_lst):
+        if len(lst) != len(other_lst):
+            return False
+
+        for val, other_val in zip(lst, other_lst):
+            if not self._match_val(val, other_val):
+                return False
+
+        return True
+
+    def _match_val(self, val, other_val):
+        if _ismap(val) and _ismap(other_val):
+            if not self._match_map(val, other_val):
+                return False
+        elif _islist(val) and _islist(other_val):
+            if not self._match_list(val, other_val):
+                return False
+        elif (isinstance(val, datetime.datetime)
+              and isinstance(other_val, datetime.datetime)):
+            if _dt_rounded(val) != _dt_rounded(other_val):
+                return False
+        elif val != other_val:
+            return False
+
         return True
 
     def _replies(self, *args, **kwargs):
@@ -699,7 +746,7 @@ class OpQuery(Request):
 
     def __init__(self, *args, **kwargs):
         fields = kwargs.pop('fields', None)
-        if fields is not None and not isinstance(fields, Mapping):
+        if fields is not None and not _ismap(fields):
             raise_args_err()
         self._fields = fields
         self._num_to_skip = kwargs.pop('num_to_skip', None)
