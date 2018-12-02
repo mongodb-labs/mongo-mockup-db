@@ -4,6 +4,7 @@
 """Test MockupDB."""
 
 import contextlib
+import datetime
 import os
 import ssl
 import sys
@@ -239,6 +240,18 @@ class TestMatcher(unittest.TestCase):
             self.assertTrue(
                 Matcher(Command('x', y=b)).matches(Command('x', y=a)),
                 "PyMongo %r != MockupDB %r" % (a, b))
+
+    def test_datetime(self):
+        server = MockupDB(auto_ismaster=True, verbose=True)
+        server.run()
+        client = MongoClient(server.uri)
+        # Python datetimes have microsecond precision, BSON only millisecond.
+        # Ensure this datetime matches itself despite the truncation.
+        dt = datetime.datetime(2018, 12, 1, 6, 6, 6, 12345)
+        doc = SON([('_id', 1), ('dt', dt)])
+        with going(client.db.collection.insert_one, doc):
+            server.receives(
+                OpMsg('insert', 'collection', documents=[doc])).ok()
 
 
 class TestAutoresponds(unittest.TestCase):

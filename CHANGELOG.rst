@@ -3,6 +3,19 @@
 Changelog
 =========
 
+Next Release
+------------
+
+Improve datetime support in match expressions. Python datetimes have microsecond
+precision but BSON only has milliseconds, so expressions like this always
+failed::
+
+  server.receives(Command('foo', when=datetime(2018, 12, 1, 6, 6, 6, 12345)))
+
+Now, the matching logic has been rewritten to recurse through arrays and
+subdocuments, comparing them value by value. It compares datetime values with
+only millisecond precision.
+
 1.6.0 (2018-11-16)
 ------------------
 
