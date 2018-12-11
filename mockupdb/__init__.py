@@ -628,34 +628,31 @@ class OpMsg(CommandBase):
         Takes the client message as bytes, the client and server socket objects,
         and the client request id.
         """
+        payload_document = OrderedDict()
         flags, = _UNPACK_UINT(msg[:4])
         pos = 4
-        first_payload_type, = _UNPACK_BYTE(msg[pos:pos + 1])
-        pos += 1
-        first_payload_size, = _UNPACK_INT(msg[pos:pos + 4])
         if flags != 0 and flags != 2:
             raise ValueError('OP_MSG flag must be 0 or 2 not %r' % (flags,))
-        if first_payload_type != 0:
-            raise ValueError('First OP_MSG payload type must be 0 not %r' % (
-                first_payload_type,))
 
-        # Parse the initial document and add the optional payload type 1.
-        payload_document = bson.decode_all(msg[pos:pos + first_payload_size],
-                                           CODEC_OPTIONS)[0]
-        pos += first_payload_size
-        if len(msg) != pos:
+        while pos < len(msg):
             payload_type, = _UNPACK_BYTE(msg[pos:pos + 1])
             pos += 1
-            if payload_type != 1:
-                raise ValueError('Second OP_MSG payload type must be 1 not %r'
-                                 % (payload_type,))
-            section_size, = _UNPACK_INT(msg[pos:pos + 4])
-            if len(msg) != pos + section_size:
-                raise ValueError('More than two OP_MSG sections unsupported')
-            pos += 4
-            identifier, pos = _get_c_string(msg, pos)
-            documents = bson.decode_all(msg[pos:], CODEC_OPTIONS)
-            payload_document[identifier] = documents
+            payload_size, = _UNPACK_INT(msg[pos:pos + 4])
+            if payload_type == 0:
+                doc = bson.decode_all(msg[pos:pos + payload_size],
+                                      CODEC_OPTIONS)[0]
+                payload_document.update(doc)
+                pos += payload_size
+            elif payload_type == 1:
+                section_size, = _UNPACK_INT(msg[pos:pos + 4])
+                pos += 4
+                identifier, pos = _get_c_string(msg, pos)
+                # Section starts w/ 4-byte size prefix, identifier ends w/ nil.
+                documents_len = section_size - len(identifier) - 1 - 4
+                documents = bson.decode_all(msg[pos:pos + documents_len],
+                                            CODEC_OPTIONS)
+                payload_document[identifier] = documents
+                pos += documents_len
 
         database = payload_document['$db']
         return OpMsg(payload_document, namespace=database, flags=flags,

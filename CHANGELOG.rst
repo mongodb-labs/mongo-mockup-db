@@ -13,6 +13,10 @@ empty isMaster response, causing drivers to throw errors like "Server at
 localhost:27017 reports wire version 0, but this version of PyMongo requires at
 least 2 (MongoDB 2.6)."
 
+Parse OP_MSGs with any number of sections in any order. This allows write
+commands from the mongo shell, which sends sections in the opposite order from
+drivers.
+
 1.7.0 (2018-12-02)
 ------------------
 
