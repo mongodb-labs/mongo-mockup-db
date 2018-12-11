@@ -1497,8 +1497,30 @@ class MockupDB(object):
             >>> client.close()
             >>> s.stop()
         """
+        return self._insert_responder("top", matcher, *args, **kwargs)
+
+    subscribe = autoresponds
+    """Synonym for `.autoresponds`."""
+
+    @_synchronized
+    def append_responder(self, matcher, *args, **kwargs):
+        """Add a responder of last resort.
+
+        Like `.autoresponds`, but instead of adding a responder to the top of
+        the stack, add it to the bottom. This responder will be called if no
+        others match.
+        """
+        return self._insert_responder("bottom", matcher, *args, **kwargs)
+
+    def _insert_responder(self, where, matcher, *args, **kwargs):
         responder = _AutoResponder(self, matcher, *args, **kwargs)
-        self._autoresponders.append(responder)
+        if where == "top":
+            self._autoresponders.append(responder)
+        elif where == "bottom":
+            self._autoresponders.insert(0, responder)
+        else:
+            raise RuntimeError("Invalid 'where': %r" % (where,))
+
         try:
             request = self._request_q.peek(block=False)
         except Empty:
@@ -1508,9 +1530,6 @@ class MockupDB(object):
                 self._request_q.get_nowait()  # Pop it.
 
         return responder
-
-    subscribe = autoresponds
-    """Synonym for `.autoresponds`."""
 
     @_synchronized
     def cancel_responder(self, responder):
@@ -2016,7 +2035,7 @@ def interactive_server(port=27017, verbose=True, all_ok=False, name='MockupDB',
                       auto_ismaster=True,
                       uds_path=uds_path)
     if all_ok:
-        server.autoresponds({})
+        server.append_responder({})
     server.autoresponds('whatsmyuri', you='localhost:12345')
     server.autoresponds({'getLog': 'startupWarnings'},
                         log=['hello from %s!' % name])

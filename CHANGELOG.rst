@@ -3,6 +3,16 @@
 Changelog
 =========
 
+Next Release
+------------
+
+New method ``MockupDB.append_responder`` to add an autoresponder of last resort.
+
+Fix a bug in ``interactive_server`` with ``all_ok=True``. It had returned an
+empty isMaster response, causing drivers to throw errors like "Server at
+localhost:27017 reports wire version 0, but this version of PyMongo requires at
+least 2 (MongoDB 2.6)."
+
 1.7.0 (2018-12-02)
 ------------------
 
