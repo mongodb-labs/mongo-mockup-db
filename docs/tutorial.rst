@@ -20,11 +20,14 @@ Begin by running a :class:`.MockupDB` and connecting to it with PyMongo's
    >>> server = MockupDB()
    >>> port = server.run()  # Returns the TCP port number it listens on.
    >>> from pymongo import MongoClient
-   >>> client = MongoClient(server.uri)
+   >>> client = MongoClient(server.uri, connectTimeoutMS=999999)
 
 When the client connects it calls the "ismaster" command, then blocks until
-the server responds. MockupDB receives the "ismaster" command but does not
-respond until you tell it to:
+the server responds. By default it throws an error if the server doesn't
+respond in 10 seconds, so set a longer timeout.
+
+MockupDB receives the "ismaster" command but does not respond until you tell it
+to:
 
    >>> request = server.receives()
    >>> request.command_name
