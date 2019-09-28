@@ -27,6 +27,7 @@ import datetime
 import errno
 import functools
 import inspect
+import operator
 import os
 import random
 import select
@@ -275,7 +276,10 @@ REPLY_FLAGS = OrderedDict([
 
 OP_MSG_FLAGS = OrderedDict([
     ('checksumPresent', 1),
-    ('moreToCome', 2)])
+    ('moreToCome', 2),
+    ('exhaustAllowed', 16)])
+
+_ALL_OP_MSG_FLAGS = functools.reduce(operator.or_, OP_MSG_FLAGS.values())
 
 _UNPACK_BYTE = struct.Struct("<b").unpack
 _UNPACK_INT = struct.Struct("<i").unpack
@@ -631,10 +635,20 @@ class OpMsg(CommandBase):
         payload_document = OrderedDict()
         flags, = _UNPACK_UINT(msg[:4])
         pos = 4
-        if flags != 0 and flags != 2:
-            raise ValueError('OP_MSG flag must be 0 or 2 not %r' % (flags,))
+        if flags & ~_ALL_OP_MSG_FLAGS:
+            raise ValueError(
+                'OP_MSG flags has reserved bits set.'
+                ' Allowed flags: 0x%x. Provided flags: 0x%x' % (
+                    _ALL_OP_MSG_FLAGS, flags))
 
-        while pos < len(msg):
+        checksum_present = flags & OP_MSG_FLAGS['checksumPresent']
+        checksum = None
+        if checksum_present:
+            msg_len_without_checksum = len(msg) - 4
+        else:
+            msg_len_without_checksum = len(msg)
+
+        while pos < msg_len_without_checksum:
             payload_type, = _UNPACK_BYTE(msg[pos:pos + 1])
             pos += 1
             payload_size, = _UNPACK_INT(msg[pos:pos + 4])
@@ -654,13 +668,29 @@ class OpMsg(CommandBase):
                 payload_document[identifier] = documents
                 pos += documents_len
 
+        remaining = len(msg) - pos
+        if checksum_present:
+            if remaining != 4:
+                raise ValueError(
+                    'OP_MSG has checksumPresent flag set, expected 4 bytes'
+                    ' remaining but have %d bytes remaining' % (remaining,))
+
+            checksum = _UNPACK_UINT(msg[pos:pos+4])[0]
+        else:
+            if remaining != 0:
+                raise ValueError(
+                    'OP_MSG has no checksumPresent flag, expected 0 bytes'
+                    ' remaining but have %d bytes remaining' % (remaining,))
+
         database = payload_document['$db']
         return OpMsg(payload_document, namespace=database, flags=flags,
-                     _client=client, request_id=request_id,
+                     _client=client, request_id=request_id, checksum=checksum,
                      _server=server)
 
     def __init__(self, *args, **kwargs):
+        checksum = kwargs.pop('checksum', None)
         super(OpMsg, self).__init__(*args, **kwargs)
+        self._checksum = checksum
         if len(self._docs) > 1:
             raise_args_err('OpMsg too many documents', ValueError)
 
@@ -669,6 +699,11 @@ class OpMsg(CommandBase):
         """True if this OpMsg can read from a secondary."""
         read_preference = self.doc.get('$readPreference')
         return read_preference and read_preference.get('mode') != 'primary'
+
+    @property
+    def checksum(self):
+        """The provided checksum, if set, else None."""
+        return self._checksum
 
     slave_okay = slave_ok
     """Synonym for `.slave_ok`."""
@@ -1631,7 +1666,7 @@ class MockupDB(object):
                     server_thread.start()
             except socket.error as error:
                 if error.errno not in (
-                    errno.EAGAIN, errno.EBADF, errno.EWOULDBLOCK):
+                        errno.EAGAIN, errno.EBADF, errno.EWOULDBLOCK):
                     raise
             except select.error as error:
                 if error.args[0] == errno.EBADF:
