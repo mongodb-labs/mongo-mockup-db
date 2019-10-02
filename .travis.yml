@@ -8,8 +8,8 @@ branches:
 
 matrix:
   include:
-    - python: 2.6
-      env: TOXENV=py26-test
+    - python: 2.7
+      env: TOXENV=py27-test
     - python: 3.6
       env: TOXENV=py36-test
     - python: 3.6
