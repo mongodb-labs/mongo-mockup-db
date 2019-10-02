@@ -13,9 +13,9 @@ matrix:
     - python: 3.6
       env: TOXENV=py36-test
     - python: 3.6
-      env: TOXENV=py36-docs
+      env: TOXENV=docs
     - python: 3.6
-      env: TOXENV=py36-doctest
+      env: TOXENV=doctest
 
 install:
   - pip install -U tox
