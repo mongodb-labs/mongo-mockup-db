@@ -9,6 +9,7 @@ import os
 import ssl
 import sys
 import tempfile
+from struct import Struct
 
 if sys.version_info[0] < 3:
     from io import BytesIO as StringIO
@@ -20,13 +21,14 @@ try:
 except ImportError:
     from Queue import Queue
 
-from bson import (Binary, Code, DBRef, Decimal128, MaxKey, MinKey, ObjectId,
-                  Regex, SON, Timestamp)
+from bson import (Binary, BSON, Code, DBRef, Decimal128, MaxKey, MinKey,
+                  ObjectId, Regex, SON, Timestamp)
 from bson.codec_options import CodecOptions
 from pymongo import MongoClient, message, WriteConcern
 
 from mockupdb import (go, going, Command, CommandBase, Matcher, MockupDB,
-                      Request, OpInsert, OpMsg, OpQuery, QUERY_FLAGS)
+                      Request, OpInsert, OP_MSG_FLAGS, OpMsg, OpQuery,
+                      QUERY_FLAGS)
 from tests import unittest  # unittest2 on Python 2.6.
 
 
@@ -366,6 +368,43 @@ class TestResponse(unittest.TestCase):
 
         response = future()
         self.assertEqual(3, response['ok'])
+
+
+class TestOpMsg(unittest.TestCase):
+    def setUp(self):
+        self.server = MockupDB(auto_ismaster={'maxWireVersion': 6})
+        self.server.run()
+        self.addCleanup(self.server.stop)
+        self.client = MongoClient(self.server.uri)
+
+    def test_flags(self):
+        doc = SON([('foo', 1), ('$db', 'mydb')])
+        obj = BSON.encode(doc)
+
+        for flag_name, flag_bit in OP_MSG_FLAGS.items():
+            # MockupDB strips 16-byte header then calls unpack on body.
+            message_body = b''.join([
+                Struct('<I').pack(flag_bit),  # flagBits
+                Struct('<b').pack(0),  # section kind
+                obj,
+            ])
+
+            if flag_name == 'checksumPresent':
+                message_body += Struct('<I').pack(1234)
+
+            op_msg = OpMsg.unpack(msg=message_body,
+                                  client=None,
+                                  server=None,
+                                  request_id=0)
+
+            self.assertEqual(op_msg.flags, flag_bit)
+            self.assertEqual(op_msg.doc, doc)
+            self.assertEqual(op_msg.namespace, 'mydb')
+
+            if flag_name == 'checksumPresent':
+                self.assertEqual(op_msg.checksum, 1234)
+            else:
+                self.assertEqual(op_msg.checksum, None)
 
 
 if __name__ == '__main__':
