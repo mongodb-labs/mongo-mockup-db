@@ -40,6 +40,7 @@ import time
 import weakref
 import sys
 from codecs import utf_8_decode as _utf_8_decode
+from collections import OrderedDict
 
 try:
     from queue import Queue, Empty
@@ -50,11 +51,6 @@ try:
     from collections.abc import Mapping
 except:
     from collections import Mapping
-
-try:
-    from collections import OrderedDict
-except:
-    from ordereddict import OrderedDict  # Python 2.6, "pip install ordereddict"
 
 try:
     from io import StringIO
@@ -205,7 +201,7 @@ class Future(object):
 
     def result(self, timeout=None):
         self._event.wait(timeout)
-        # wait() always returns None in Python 2.6.
+        # wait() always returns None in Python 2.
         if not self._event.is_set():
             raise AssertionError('timed out waiting for Future')
         return self._result

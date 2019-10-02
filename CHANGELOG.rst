@@ -6,6 +6,8 @@ Changelog
 Next Release
 ------------
 
+MockupDB no longer supports Python 2.6 or Python 3.3.
+
 New method ``MockupDB.append_responder`` to add an autoresponder of last resort.
 
 Fix a bug in ``interactive_server`` with ``all_ok=True``. It had returned an

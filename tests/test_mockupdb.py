@@ -29,7 +29,7 @@ from pymongo import MongoClient, message, WriteConcern
 from mockupdb import (go, going, Command, CommandBase, Matcher, MockupDB,
                       Request, OpInsert, OP_MSG_FLAGS, OpMsg, OpQuery,
                       QUERY_FLAGS)
-from tests import unittest  # unittest2 on Python 2.6.
+from tests import unittest
 
 
 @contextlib.contextmanager
