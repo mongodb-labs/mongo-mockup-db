@@ -200,9 +200,7 @@ class Future(object):
         self._event = threading.Event()
 
     def result(self, timeout=None):
-        self._event.wait(timeout)
-        # wait() always returns None in Python 2.
-        if not self._event.is_set():
+        if not self._event.wait(timeout):
             raise AssertionError('timed out waiting for Future')
         return self._result
 
