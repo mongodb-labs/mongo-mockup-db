@@ -9,6 +9,7 @@ import os
 import ssl
 import sys
 import tempfile
+import unittest
 from struct import Struct
 
 if sys.version_info[0] < 3:
@@ -29,7 +30,6 @@ from pymongo import MongoClient, message, WriteConcern
 from mockupdb import (go, going, Command, CommandBase, Matcher, MockupDB,
                       Request, OpInsert, OP_MSG_FLAGS, OpMsg, OpQuery,
                       QUERY_FLAGS)
-from tests import unittest  # unittest2 on Python 2.6.
 
 
 @contextlib.contextmanager
