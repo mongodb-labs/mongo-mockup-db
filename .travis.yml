@@ -27,6 +27,9 @@ matrix:
       env: TOXENV=py36-doctest
 
 install:
+  # Upgrade pip to avoid issues installing tox on Python 3.4:
+  # https://github.com/pypa/setuptools/issues/951
+  - pip install -U pip
   - pip install -U tox
 
 script:
