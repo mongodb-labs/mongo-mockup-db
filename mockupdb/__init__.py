@@ -1660,10 +1660,11 @@ class MockupDB(object):
                     server_thread.start()
             except socket.error as error:
                 if error.errno not in (
-                        errno.EAGAIN, errno.EBADF, errno.EWOULDBLOCK):
+                        errno.EAGAIN, errno.EBADF, errno.ENOTSOCK,
+                        errno.EWOULDBLOCK):
                     raise
             except select.error as error:
-                if error.args[0] == errno.EBADF:
+                if error.args[0] in (errno.EBADF, errno.ENOTSOCK):
                     # Closed.
                     break
                 else:
@@ -1688,12 +1689,13 @@ class MockupDB(object):
                 else:
                     self._request_q.put(request)
             except socket.error as error:
-                if error.errno in (errno.ECONNRESET, errno.EBADF):
+                if error.errno in (errno.ECONNRESET, errno.EBADF,
+                                   errno.ENOTSOCK):
                     # We hung up, or the client did.
                     break
                 raise
             except select.error as error:
-                if error.args[0] == errno.EBADF:
+                if error.args[0] in (errno.EBADF, errno.ENOTSOCK):
                     # Closed.
                     break
                 else:
