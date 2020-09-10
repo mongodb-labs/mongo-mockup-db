@@ -18,13 +18,16 @@ matrix:
       env: TOXENV=py36-test
     - python: 3.7
       env: TOXENV=py37-test
-      # 3.7 requires sudo: https://github.com/travis-ci/travis-ci/issues/9831
-      sudo: required
       dist: xenial
-    - python: 3.6
-      env: TOXENV=py36-docs
-    - python: 3.6
-      env: TOXENV=py36-doctest
+    - python: 3.8
+      env: TOXENV=py38-test
+      dist: xenial
+    - python: 3.8
+      env: TOXENV=py38-docs
+      dist: xenial
+    - python: 3.8
+      env: TOXENV=py38-doctest
+      dist: xenial
 
 install:
   # Upgrade pip to avoid issues installing tox on Python 3.4:
