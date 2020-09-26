@@ -3,10 +3,11 @@
 Changelog
 =========
 
-Next Release
-------------
+1.8.0 (2020-09-26)
+------------------
 
-MockupDB no longer supports Python 2.6 or Python 3.3.
+MockupDB supports Python 3.4 through 3.8; it no longer supports Python 2.6 or
+Python 3.3.
 
 New method ``MockupDB.append_responder`` to add an autoresponder of last resort.
 
@@ -15,9 +16,13 @@ empty isMaster response, causing drivers to throw errors like "Server at
 localhost:27017 reports wire version 0, but this version of PyMongo requires at
 least 2 (MongoDB 2.6)."
 
+Stop logging "OSError: [WinError 10038] An operation was attempted on something
+that is not a socket" on Windows after a client disconnects.
+
 Parse OP_MSGs with any number of sections in any order. This allows write
 commands from the mongo shell, which sends sections in the opposite order from
-drivers.
+drivers. Handle OP_MSGs with checksums, such as those sent by the mongo shell
+beginning in 4.2.
 
 1.7.0 (2018-12-02)
 ------------------
