@@ -269,9 +269,9 @@ REPLY_FLAGS = OrderedDict([
     ('QueryFailure', 2)])
 
 OP_MSG_FLAGS = OrderedDict([
-    ('checksumPresent', 1),
-    ('moreToCome', 2),
-    ('exhaustAllowed', 16)])
+    ('checksumPresent', 1 << 0),
+    ('moreToCome', 1 << 1),
+    ('exhaustAllowed', 1 << 16)])
 
 _ALL_OP_MSG_FLAGS = functools.reduce(operator.or_, OP_MSG_FLAGS.values())
 
