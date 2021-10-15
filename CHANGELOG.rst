@@ -3,8 +3,10 @@
 Changelog
 =========
 
-Next Release
-------------
+1.8.1 (2021-10-14)
+------------------
+
+Fix a bug where MockupDB did not recognize the OP_MSG exhaustAllowed flag.
 
 1.8.0 (2020-09-26)
 ------------------
