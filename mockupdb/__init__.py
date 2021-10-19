@@ -19,7 +19,7 @@ from __future__ import print_function
 
 __author__ = 'A. Jesse Jiryu Davis'
 __email__ = 'jesse@mongodb.com'
-__version__ = '1.8.1'
+__version__ = '1.9.0.dev1'
 
 import atexit
 import contextlib
@@ -1429,7 +1429,7 @@ class MockupDB(object):
     @_synchronized
     def autoresponds(self, matcher, *args, **kwargs):
         """Send a canned reply to all matching client requests.
-        
+
         ``matcher`` is a `Matcher` or a command name, or an instance of
         `OpInsert`, `OpQuery`, etc.
 
